@@ -88,6 +88,9 @@ def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=3):
     root                        = f"C:/data/chess/experiences/gen{gen}"
     experiences                 = []
 
+    if not os.listdir(root):
+        print(f"No data to train on")
+        return
     max_i                       = max([int(f.split('_')[1]) for f in os.listdir(root)]) 
 
     for game_i in range(max_i+1):
