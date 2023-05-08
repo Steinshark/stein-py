@@ -13,7 +13,11 @@ from torchvision.transforms import PILToTensor, ToPILImage
 from math import sqrt 
 import numpy 
 import scipy 
+from matplotlib import pyplot as plt 
 
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+inf_time = []
 class QLearner:
 
 	def __init__(	self,
@@ -756,9 +760,12 @@ class Environment:
 
 class Chess(Environment):
 	chess_moves 		= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
-	base_tensor 		= None
+	base_tensor 		= torch.zeros(size=(2,130,130),device=torch.device('cuda'),dtype=torch.half,requires_grad=False)
 	created_base 		= False
 	piece_tensors 		= {} 
+
+	#Build 200 random noise vectors on the GPU
+	noise			= numpy.random.default_rng()
 
 	def __init__(self,name,device=torch.device('cpu')):
 		super(Chess,self).__init__(name,device=device)
@@ -1244,13 +1251,8 @@ class Chess(Environment):
 			for fname in os.listdir("C:/gitrepos/steinpy/ml/res"):
 				if not "light" in fname and not "dark" in fname:
 					continue
-				Chess.piece_tensors[fname]	= torch.load(os.path.join("C:/gitrepos/steinpy/ml/res",fname)).to(torch.device('cuda')).requires_grad_(False)
-		
-		if not Chess.created_base:
-			png_bytes									= svg2png(chess.svg.board(chess.Board(),size=str(130)))	#Always 130
-			img 										= Image.open(BytesIO(png_bytes)).convert("L")						#Convert to greyscale
-			Chess.base_tensor							= torch.stack([PILToTensor()(img).type(torch.uint8)[0],torch.ones(size=(130,130))]).to(torch.device('cuda')).requires_grad_(False)
-			Chess.created_base							= True
+				Chess.piece_tensors[fname]	= torch.load(os.path.join("C:/gitrepos/steinpy/ml/res",fname)).to(torch.device('cuda')).requires_grad_(False).type(torch.float)
+
 		cur_fen	= chess_board.fen()
 		for rank_i, cur_rank in enumerate(cur_fen.split(" ")[0].split("/"),1):
 			
@@ -1272,13 +1274,14 @@ class Chess(Environment):
 					square 	= "e"
 				
 				tensor_key	= f"{color}_{square}_{sq_color}"
-				tensor 		= Chess.piece_tensors[tensor_key]
+				tensor		= Chess.piece_tensors[tensor_key]
 
 				y,x 	= Chess.coord_to_xy(rank_i,file_x)
 
-				Chess.base_tensor[0,y:y+15,x:x+15]	= tensor.clone()
+				Chess.base_tensor[0,y:y+15,x:x+15]	= tensor
 		Chess.base_tensor[1]						*= 1 if chess_board.turn == chess.WHITE else -1
-		return Chess.base_tensor.type(torch.float).clone().requires_grad_(False)
+
+		return Chess.base_tensor.clone()
 
 
 
@@ -1323,7 +1326,6 @@ class Node:
 	
 
 class Tree:
-	softmax 			= torch.nn.Softmax()
 	
 	def __init__(self,board,model,base_node=None,draw_thresh=250):
 		self.board 			= board 
@@ -1335,91 +1337,71 @@ class Tree:
 			self.root 			= Node(board,0,None)
 
 
-	def update_tree(self,node:Node,x=.75,dirichlet_a=1.0,rollout_p=.05,rollout=False):
-		
+	def update_tree(self,node:Node,x=.75,dirichlet_a=1.0,rollout_p=.1,rollout=False):
+		global inf_time
 		#If gameover return game result 
 		if node.board.outcome():
 			if "1" in node.board.result():
 				if node.board.result()[0] == "1":
+					node.Q_val 			= (node.num_visited * node.Q_val + 1) / (node.num_visited + 1) 
+					node.num_visited 	+= 1 
 					return 1 
 				else:
+					node.Q_val 			= (node.num_visited * node.Q_val + -1) / (node.num_visited + 1) 
+					node.num_visited 	+= 1 
 					return -1 
 			else:
+				node.Q_val 			= (node.num_visited * node.Q_val + 0) / (node.num_visited + 1) 
+				node.num_visited 	+= 1 
 				return 0 
 			
 		#If not explored, expand out children and return v value
 		if not node.children:
-
 			#Initialize repr 
-			
 			node.repr 			= Chess.create_board_img_static(node.board)
-
 			#Get prob and v
+			
 			with torch.no_grad():
-				prob,v 			= self.model(node.repr.view(1,2,130,130).to(torch.device('cuda')))
-
+				prob,v 			= self.model(node.repr.view(1,2,130,130))
 			#NUMPY VERSION 	
 			prob			= prob.cpu()
 			legal_moves 	= [Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves]
 			legal_probs 	= [prob[0][i] for i in legal_moves]
 			#Apply dirichlet noise 
-			noise 			= numpy.random.default_rng().dirichlet([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
+			noise 			= Chess.noise.dirichlet([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
 			legal_probs		= [x*p for p in legal_probs] + (1-x)*noise
 			legal_probs		= scipy.special.softmax(legal_probs)[0]
 			#NUMPY VERSION
 
-
-			#GPU VERSION 	
-			# legal_moves 	= torch.tensor([Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves],device=torch.device('cuda'))
-			# legal_probs 	= torch.zeros(1968,device=torch.device('cuda'))
-			# for index in legal_moves:
-			# 	legal_probs[index] = prob[0][index]
-			# # input(legal_probs)
-			# #Apply dirichlet noise 
-			# noise			= torch.distributions.Dirichlet(torch.tensor([dirichlet_a for _ in range(len(legal_probs))],device=torch.device('cuda'))).sample()
-			# legal_probs		= legal_probs*x + (1-x)*noise
-			# legal_probs		= Tree.softmax(legal_probs)
-			#GPU VERSION
-
-			# print(f"search took {time.time()-t0}")
-			# print(f"{legal_probs.shape}")
-			# input(f"{legal_moves.shape}")
-			#Augment prob with dirichlet noise
-			# noise 			= torch.distributions.Dirichlet(torch.ones(1968,device=torch.device('cuda'))*dirichlet_a).sample()
-			# prob 			= x_val*prob + (1.0-x_val)*noise
-			# legal_moves 	= [Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves]
-			# legal_prob 		= torch.tensor([p if i in legal_moves else 0 for i,p in enumerate(prob[0])],dtype=torch.float)
-			# legal_prob		= torch.nn.functional.softmax(legal_prob,dim=1)
-			# input(legal_prob)
-
-
 			for prob,move_i in zip(legal_probs,legal_moves):
+				
 				#clone board and push move 
 				child_board										= node.board.copy()
 				child_board.push_san(Chess.chess_moves[move_i])
-
-				#print(f"child board:\n{child_board}")
-
-				#input(f"parent board:\n{node.board}")
 				node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
 			
 			if random.random() < rollout_p:
-				return -self.rollout(child_board.copy())
+				v = self.rollout(child_board.copy())
+				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
+				node.num_visited 	+= 1 
+				return -v
 			else:
+				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
+				node.num_visited 	+= 1 
 				return -v 
 
-		best_score			= float('inf') * -1 
+		#best_score			= float('inf') * -1 
 		best_node 			= None 
 
 
-		#best_node = max(list(node.children.values()),key = lambda x: x.get_score())
-		for child_node in node.children.values():
+		best_node = max(list(node.children.values()),key = lambda x: x.get_score())
+		# for child_node in node.children.values():
 
-			child_val 			= child_node.get_score()
+		# 	child_val 			= child_node.get_score()
 
-			if child_val > best_score:
-				best_score 			= child_val 
-				best_node 			= child_node
+		# 	if child_val > best_score:
+		# 		best_score 			= child_val 
+		# 		best_node 			= child_node
 		
 
 
@@ -1433,10 +1415,12 @@ class Tree:
 
 
 	def rollout(self,board):
+
 		#If gameover return game result 
-		if board.outcome():
-			if "1" in board.result():
-				if board.result()[0] == "1":
+		res 	= board.result()
+		if not res == "*":
+			if "1" in res:
+				if res[0] == "1":
 					return 1 
 				else:
 					return -1 
@@ -1453,9 +1437,9 @@ class Tree:
 
 
 	def get_policy(self,search_iters,draw_thresh=500):
-
-		for _ in range(search_iters):
-			self.update_tree(self.root)
+		with torch.no_grad():
+			for _ in range(search_iters):
+				self.update_tree(self.root)
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
 
