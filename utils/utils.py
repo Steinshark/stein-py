@@ -1,6 +1,7 @@
 import numpy 
 import math 
 import json 
+import os 
 
 #   General function to interpolate an array
 #   To a smaller size  
@@ -16,3 +17,10 @@ def reduce_arr(arr,newlen):
     return [sum(list(new_arr[n*div_fact:(n+1)*div_fact]))/div_fact for n in range(newlen)]
 
 
+#Responsible for writing objects to the file server
+def db_writer(fpath,fdest):
+
+    folders     = fpath.split(os.sep)
+
+    
+    
