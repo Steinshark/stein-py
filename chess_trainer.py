@@ -42,9 +42,9 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
     draw_by_limit           = False 
     while not (game_board.is_checkmate() or game_board.is_stalemate() or game_board.is_seventyfive_moves() or game_board.is_fifty_moves()):
         #Build a local policy 
-        #t0 =time.time()
+        t0 =time.time()
         local_policy            = MCtree.get_policy(search_iters)
-        #print(f"built {sum(list(local_policy.values()))} policy in {(time.time()-t0):.2f}s\n{local_policy}")
+        print(f"built {sum(list(local_policy.values()))} policy in {(time.time()-t0):.2f}s\n{local_policy}")
         #construct trainable policy 
         pi                                      = torch.zeros(1968)
         for move,prob in local_policy.items():
