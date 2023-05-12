@@ -1750,7 +1750,7 @@ class Tree:
 
 	def get_policy(self,search_iters):
 
-		return self.update_tree(iters=search_iters)
+		return self.update_tree_nonrecursive_exp(iters=search_iters)
 
 		# with torch.no_grad():
 		# 	for _ in range(search_iters):
@@ -1765,6 +1765,6 @@ if __name__ == "__main__":
 	board.push_san("e1e2")
 	tnsr	= Chess.fen_to_tensor(board,torch.device('cpu'))
 
-	n = networks.ChessNet()
-
+	#n = networks.ChessNet()
+	n = None
 	print(n.forward(tnsr.unsqueeze(0)).shape)
