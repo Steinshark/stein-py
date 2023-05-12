@@ -46,7 +46,6 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
         
         #Build a local policy 
         t0 =time.time()
-        t0 =time.time()
         local_policy            = MCtree.get_policy(search_iters)
         print(f"built {sum(list(local_policy.values()))} policy in {(time.time()-t0):.2f}s\n{local_policy}")
         
@@ -180,7 +179,7 @@ model                       = networks.ChessNet(optimizer_kwargs={"lr":1e-5,"wei
 training_iters              = 1
 games_per_iter              = 2
 draw_thresh                 = 10
-search_iters                = 500
+search_iters                = 200
 #load_model(model)
 #train(model,1024,1,bs=32,epochs=3)
 for iter in range(training_iters):
