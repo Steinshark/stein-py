@@ -761,7 +761,7 @@ class Environment:
 
 class Chess(Environment):
 	try:
-		chess_moves 		= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+		chess_moves 		= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
 	except FileNotFoundError:
 		chess_moves 		= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 	
@@ -1599,7 +1599,7 @@ class Tree:
 		softmax_fn				= scipy.special.softmax
 		chessmoves_indexer 		= Chess.chess_moves.index
 		try:
-			chess_moves 			= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
 		except FileNotFoundError:
 			chess_moves 			= json.loads(open(os.path.join("/home/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 		lookups 				= 0
@@ -1681,7 +1681,7 @@ class Tree:
 
 
 		try:
-			chess_moves 			= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
 		except FileNotFoundError:
 			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 		
