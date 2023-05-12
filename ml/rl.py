@@ -14,7 +14,6 @@ from math import sqrt
 import numpy 
 import scipy 
 from matplotlib import pyplot as plt 
-
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 inf_time = []
@@ -27,7 +26,7 @@ class QLearner:
 				loss_fn=torch.nn.MSELoss,
 				optimizer_fn=torch.optim.Adam,
 				optimizer_kwargs={"lr":1e-5},
-				device=torch.device('cuda'),
+				device=torch.device('cpu'),
 				verbose=True,
 				path="models"):
 		
@@ -257,7 +256,7 @@ class DoubleQLearner:
 				loss_fn=torch.nn.MSELoss,
 				optimizer_fn=torch.optim.Adam,
 				optimizer_kwargs={"lr":1e-5},
-				device=torch.device('cuda'),
+				device=torch.device('cpu'),
 				verbose=True,
 				path="models",
 				loading=False):
@@ -759,8 +758,14 @@ class Environment:
 	
 
 class Chess(Environment):
-	chess_moves 		= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
-	base_tensor 		= torch.zeros(size=(2,130,130),device=torch.device('cuda'),dtype=torch.half,requires_grad=False)
+	try:
+		chess_moves 		= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+	except FileNotFoundError:
+		chess_moves 		= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
+	
+	move_to_index		= {chess.Move.from_uci(uci):i for i,uci in enumerate(chess_moves)}
+	index_to_move	    = {v : k  for k,v in move_to_index.items()}
+	base_tensor 		= torch.zeros(size=(2,130,130),device=torch.device('cpu'),dtype=torch.half,requires_grad=False)
 	created_base 		= False
 	piece_tensors 		= {} 
 
@@ -770,6 +775,7 @@ class Chess(Environment):
 	#Build 200 random noise vectors on the GPU
 	noise				= numpy.random.default_rng()
 	lookup 				= {} 
+	
 	def __init__(self,name,device=torch.device('cpu')):
 		super(Chess,self).__init__(name,device=device)
 
@@ -1144,10 +1150,12 @@ class Chess(Environment):
 
 		#Build images from dataset if not available 
 		if len(self.piece_tensors) == 0:
-			for fname in os.listdir("C:/gitrepos/steinpy/ml/res"):
+
+			root = "~/code"
+			for fname in os.listdir(f"{root}/steinpy/ml/res"):
 				if not "light" in fname and not "dark" in fname:
 					continue
-				self.piece_tensors[fname]	= torch.load(os.path.join("C:/gitrepos/steinpy/ml/res",fname))
+				self.piece_tensors[fname]	= torch.load(os.path.join(f"{root}/steinpy/ml/res",fname))
 
 		#Build base tensors for all games - will only have to update 1 piece 
 		if len(self.state_imgs) == 0:
@@ -1251,10 +1259,11 @@ class Chess(Environment):
 	def create_board_img_static(chess_board:chess.Board):
 
 		if not Chess.piece_tensors:
-			for fname in os.listdir("C:/gitrepos/steinpy/ml/res"):
+			root = "/home/steinshark/code"
+			for fname in os.listdir(f"{root}/steinpy/ml/res"):
 				if not "light" in fname and not "dark" in fname:
 					continue
-				Chess.piece_tensors[fname]	= torch.load(os.path.join("C:/gitrepos/steinpy/ml/res",fname)).to(torch.device('cuda')).requires_grad_(False).type(torch.float)
+				Chess.piece_tensors[fname]	= torch.load(os.path.join(f"{root}/steinpy/ml/res",fname)).to(torch.device('cpu')).requires_grad_(False).type(torch.float)
 
 		cur_fen	= chess_board.fen()
 		for rank_i, cur_rank in enumerate(cur_fen.split(" ")[0].split("/"),1):
@@ -1286,6 +1295,43 @@ class Chess(Environment):
 
 		return Chess.base_tensor.clone()
 
+	@staticmethod
+	def fen_to_tensor(board,device):
+
+		#Encoding will be an 8x8 x n tensor 
+		#	7 for whilte, 7 for black 
+		#	4 for castling 7+7+4 
+		# 	1 for move 
+		board_tensor 	= torch.zeros(size=(19,8,8),device=device,dtype=torch.float)
+		
+		piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
+		#Go through FEN and fill pieces
+		fen 	= board.fen()
+		for i in range(1,9):
+			fen 	= fen.replace(str(i),"e"*i)
+
+		position	= fen.split(" ")[0].split("/")
+		turn 		= fen.split(" ")[1]
+		castling 	= fen.split(" ")[2]
+		
+		#Place pieces
+		for rank_i,rank in enumerate(reversed(position)):
+			for file_i,piece in enumerate(rank): 
+				if not piece == "e":
+					board_tensor[piece_indx[piece],rank_i,file_i]	= 1.  
+		
+		#Place turn 
+		slice 	= 12 
+		board_tensor[slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
+
+		#Place all castling allows 
+		for castle in ["K","Q","k","q"]:
+			slice += 1
+			board_tensor[slice,:,:]	= torch.ones(size=(8,8)) * 1 if castle in castling else 0
+
+		return board_tensor
+
+		
 
 
 	@staticmethod
@@ -1312,7 +1358,7 @@ class Chess(Environment):
 class Node:
 
 
-	def __init__(self,board,p=.5,parent=None,c=4):
+	def __init__(self,board,p=.5,parent=None,c=5):
 
 		self.board 			= board 
 		self.parent 		= parent 
@@ -1332,11 +1378,12 @@ class Node:
 
 class Tree:
 	
-	def __init__(self,board,model,base_node=None,draw_thresh=250,lookups=0):
+	def __init__(self,board,model,base_node=None,draw_thresh=250,lookups=0,device=torch.device('cpu')):
 		self.board 			= board 
 		self.model 			= model 
 		self.draw_thresh	= draw_thresh
 		self.lookups 		= lookups
+		self.device	 		= device
 
 		if base_node: 
 			self.root 			= base_node
@@ -1349,7 +1396,7 @@ class Tree:
 	def update_tree(self,node:Node,x=.75,dirichlet_a=1.0,rollout_p=.1,rollout=False):
 		
 		#If gameover return game result 
-		if node.board.outcome():
+		if (node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves()):
 			if "1" in node.board.result():
 				if node.board.result()[0] == "1":
 					node.Q_val 			= (node.num_visited * node.Q_val + 1) / (node.num_visited + 1) 
@@ -1375,7 +1422,7 @@ class Tree:
 				prob,v 			= self.model.forward(node.repr.unsqueeze(0))
 			#NUMPY VERSION 	
 			prob			= prob.cpu()
-			legal_moves 	= [Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves]
+			legal_moves 	= [Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves]			#POTENTIALLY BUILD DICT OF MOVE OBJ AND DO EASY O(1) lookup!!!
 			legal_probs 	= [prob[0][i] for i in legal_moves]
 			#Apply dirichlet noise 
 			noise 			= Chess.noise.dirichlet([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
@@ -1389,7 +1436,7 @@ class Tree:
 				
 				#clone board and push move 
 				child_board										= node.board.copy()
-				child_board.push_san(Chess.chess_moves[move_i])
+				child_board.push_san(Chess.chess_moves[move_i])												# SEE NOTE ABOVE, ONLY NEED TO PUSH MAOVE, PUSH_SAN is slow
 				node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
 			
 			if random.random() < rollout_p:
@@ -1505,7 +1552,7 @@ class Tree:
 				return 0
 			
 			#Else make move according to rollout policy (currently random)
-			board.push_uci(random.choice(list(board.legal_moves)).uci())
+			board.push(random.choice(list(board.legal_moves)))
 			res 	= board.result()
 		
 		if res[0] == "1":
@@ -1521,14 +1568,14 @@ class Tree:
 		started 	= board.turn
 		
 		#If gameover return game result 
-		while not (board.is_checkmate() or board.is_stalemate() or board.is_seventyfive_moves() or board.is_fifty_moves()):
+		while not (board.is_checkmate() or board.is_stalemate() or board.is_seventyfive_moves()):
 			
 			#If over draw thresh, return 0
 			if board.ply() > self.draw_thresh:
 				return 0
 			
 			#Else make move according to rollout policy (currently random)
-			board.push_uci(random.choice(list(board.legal_moves)).uci())
+			board.push(random.choice(list(board.legal_moves)))
 		
 		res = board.result()
 		if res[0] == "1":
@@ -1549,7 +1596,10 @@ class Tree:
 		noise_gen				= numpy.random.default_rng().dirichlet
 		softmax_fn				= scipy.special.softmax
 		chessmoves_indexer 		= Chess.chess_moves.index
-		chess_moves 			= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+		try:
+			chess_moves 			= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+		except FileNotFoundError:
+			chess_moves 			= json.loads(open(os.path.join("/home/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 		lookups 				= 0
 		lookup_table			= Chess.lookup
 		
@@ -1613,15 +1663,26 @@ class Tree:
 
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
+
+
+#NEW CHESS NEW USES ONLY 1216 fp32 size tensor vs 33800 for old -> Uses new static method from Chess (fen_to_tensor)
 	def update_tree_nonrecursive_exp(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		infer 					= self.model.forward
-		create_repr				= Chess.create_board_img_static
+		create_repr				= Chess.fen_to_tensor
 		noise_gen				= numpy.random.default_rng().dirichlet
 		softmax_fn				= scipy.special.softmax
 		chessmoves_indexer 		= Chess.chess_moves.index
-		chess_moves 			= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+		move_to_index 			= Chess.move_to_index
+		index_to_move 			= Chess.index_to_move
+
+
+		try:
+			chess_moves 			= json.loads(open(os.path.join("C:/","gitrepos","steinpy","ml","res","chessmoves.txt"),"r").read())
+		except FileNotFoundError:
+			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
+		
 		lookups 				= 0
 		lookup_table			= Chess.lookup
 		legal_move_table		= Chess.legal_move_table
@@ -1651,27 +1712,22 @@ class Tree:
 			
 			#expand 
 			else:
-				node.repr 			= create_repr(node.board)
+				node.repr 			= create_repr(node.board,self.device)
 				 
-				# if node.board.fen() in Chess.lookup:
-				# 	v,legal_moves,legal_probs 				= lookup_table[node.board.fen()] 
-				# 	self.lookups += 1
-
-				prob_cpu:torch.Tensor
+				#	
 				with torch.no_grad():
-					prob,v 				= infer(node.repr.view(1,2,130,130))
+					prob,v 				= infer(node.repr.unsqueeze(0))
 				prob_cpu			= prob[0].to(torch.device('cpu'),non_blocking=True)
-				legal_moves 		= [chessmoves_indexer(m.uci()) for m in node.board.legal_moves]
+				legal_moves 		= [move_to_index[m] for m in node.board.legal_moves]	#Get move numbers
 				legal_probs 		= [prob_cpu[i] for i in legal_moves]
 
 				noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
 				legal_probs			= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
 
-				node.children 		= {chess_moves[move_i] : Node(node.board.copy(),p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
+				node.children 		= {move_i : Node(node.board.copy(),p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
 				
-				#map(lambda key: node.children[key].board.push_san(key),node.children)
 				for move in node.children:
-					node.children[move].board.push_san(move)
+					node.children[move].board.push(index_to_move[move])
 				# 	node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
 				
 				if random.random() < rollout_p:
@@ -1698,3 +1754,15 @@ class Tree:
 		# 	for _ in range(search_iters):
 		# 		self.update_tree(self.root)
 		# return {move:self.root.children[move].num_visited for move in self.root.children}
+
+
+if __name__ == "__main__":
+	board = chess.Board()
+	board.push_san("e2e4")
+	board.push_san("e7e6")
+	board.push_san("e1e2")
+	tnsr	= Chess.fen_to_tensor(board,torch.device('cpu'))
+
+	n = networks.ChessNet()
+
+	print(n.forward(tnsr.unsqueeze(0)).shape)

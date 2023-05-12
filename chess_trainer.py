@@ -9,8 +9,10 @@ from torch.utils.data import Dataset,DataLoader
 from torchvision.transforms import ToPILImage
 
 
-
-
+if "posix" in os.name:
+    dataroot        = "/home/steinshark/data"
+else:
+    dataroot        = "C:/data"
 do_print = print 
 def print(instr):
     do_print("\t" + instr)
@@ -29,10 +31,10 @@ class ChessDataset(Dataset):
     
 
 def play_game(draw_thresh,search_iters,model=None,game_num=0):
-    model                       = model.half()
-    for layer in model.modules():
-        if isinstance(layer,torch.nn.BatchNorm2d):
-            layer.float()
+    # model                       = model.half()
+    # for layer in model.modules():
+    #     if isinstance(layer,torch.nn.BatchNorm2d):
+    #         layer.float()
 
     game_board              = chess.Board()
     MCtree                  = rl.Tree(game_board,model,draw_thresh=draw_thresh+200)
@@ -41,22 +43,24 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
     state_outcome           = [] 
     draw_by_limit           = False 
     while not (game_board.is_checkmate() or game_board.is_stalemate() or game_board.is_seventyfive_moves() or game_board.is_fifty_moves()):
+        
         #Build a local policy 
-        #t0 =time.time()
+        t0 =time.time()
         local_policy            = MCtree.get_policy(search_iters)
-        #print(f"built {sum(list(local_policy.values()))} policy in {(time.time()-t0):.2f}s\n{local_policy}")
+        print(f"built {sum(list(local_policy.values()))} policy in {(time.time()-t0):.2f}s\n{local_policy}")
+        
         #construct trainable policy 
         pi                                      = torch.zeros(1968)
         for move,prob in local_policy.items():
-            pi[rl.Chess.chess_moves.index(move)]    = prob 
+            pi[move]    = prob 
 
         #sample move from policy 
-        next_move           = random.choices(rl.Chess.chess_moves,weights=pi,k=1)[0]
+        next_move           = random.choices(list(rl.Chess.move_to_index.keys()),weights=pi,k=1)[0]
 
         #Add experiences to set 
         state_repr.append(MCtree.root.repr)
         state_pi.append(pi)
-        game_board.push_uci(next_move)
+        game_board.push(next_move)
 
         #Check for draw by threshold 
         if len(state_repr) > draw_thresh:
@@ -67,7 +71,7 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
         del MCtree.root.parent              #Save space 
         if game_board.ply() % 50 == 0:
             torch.cuda.empty_cache()
-        MCtree              = rl.Tree(game_board,model,base_node=MCtree.root.children[next_move],draw_thresh=draw_thresh+200,lookups=MCtree.lookups)
+        MCtree              = rl.Tree(game_board,model,base_node=MCtree.root.children[rl.Chess.move_to_index[next_move]],draw_thresh=draw_thresh+200,lookups=MCtree.lookups)
     #Check game outcome 
     if not draw_by_limit and "1" in game_board.result():
         if game_board.result()[0] == "1":
@@ -77,24 +81,16 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
     else:
         state_outcome = torch.zeros(len(state_repr))
 
-    #Save training examples
-    # save_i              = 0 
-    # save_loc            = f"C:/data/chess/experiences/gen1/game_{save_i}_states"
+    torch.save(torch.stack(state_repr),f"{dataroot}/chess/experiences/gen1/game_{game_num}_states")
+    torch.save(torch.stack(state_pi),f"{dataroot}/chess/experiences/gen1/game_{game_num}_localpi")
+    torch.save(state_outcome,f"{dataroot}/chess/experiences/gen1/game_{game_num}_results")
 
-    # while os.path.exists(save_loc): 
-    #     save_i              += 1 
-    #     save_loc            = f"C:/data/chess/experiences/gen1/game_{save_i}_states"
-    
-    torch.save(torch.stack(state_repr),f"C:/data/chess/experiences/gen1/game_{game_num}_states")
-    torch.save(torch.stack(state_pi),f"C:/data/chess/experiences/gen1/game_{game_num}_localpi")
-    torch.save(state_outcome,f"C:/data/chess/experiences/gen1/game_{game_num}_results")
-    print(f"{MCtree.lookups} lookups")
     return game_board.ply()
 
 
 def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=3):
-    model = model.float()
-    root                        = f"C:/data/chess/experiences/gen{gen}"
+    #model = model.float()
+    root                        = f"{dataroot}/chess/experiences/gen{gen}"
     experiences                 = []
 
     if not os.listdir(root):
@@ -146,11 +142,11 @@ def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=3):
 
 
 def save_model(model:networks.FullNet,gen=1):
-    torch.save(model.state_dict(),f"C:/data/chess/models/gen{gen}")
+    torch.save(model.state_dict(),f"{dataroot}/chess/models/gen{gen}")
 
 
 def load_model(model:networks.FullNet,gen=1):
-    model.load_state_dict(torch.load(f"C:/data/chess/models/gen{gen}"))
+    model.load_state_dict(torch.load(f"{dataroot}/chess/models/gen{gen}"))
 
 def write_to_db(obj,path):
 
@@ -179,11 +175,11 @@ def read_from_db(obj,path):
 #torch.backends.cudnn.benchmark = True
 
 #DEFINE TRAINING PARAMETERS 
-model                       = networks.ImgNet(optimizer_kwargs={"lr":1e-5,"weight_decay":1e-6},n_ch=2)
-training_iters              = 10
-games_per_iter              = 5
-draw_thresh                 = 250
-search_iters                = 200
+model                       = networks.ChessNet(optimizer_kwargs={"lr":1e-5,"weight_decay":1e-6},n_ch=19)
+training_iters              = 1
+games_per_iter              = 2
+draw_thresh                 = 10
+search_iters                = 500
 #load_model(model)
 #train(model,1024,1,bs=32,epochs=3)
 for iter in range(training_iters):
@@ -195,10 +191,10 @@ for iter in range(training_iters):
         moves = play_game(draw_thresh,search_iters,model=model,game_num=game_num)
         print(f"\tfinished {moves}\tgame: {game_num}\ttook {(time.time()-t0):.2f}s")
     print(f"\tTraining")
-    train(model,1024,1,bs=32)
+    #train(model,1024,1,bs=32)
     print(f"\n")
     rl.Chess.lookup = {}
-    save_model(model)
+    #save_model(model)
 print(f"Saved Model")
             
 
