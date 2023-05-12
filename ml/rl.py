@@ -1652,9 +1652,9 @@ class Tree:
 					node.children[move].board.push_san(move)
 				# 	node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
 				
-					if random.random() < rollout_p:
-						v = self.rollout(node.board.copy()) * score_mult
-				
+				if random.random() < rollout_p:
+					v = self.rollout(node.board.copy()) * score_mult
+			
 			#input(f"node is {node}\nchild is {list(node.children.values())[0]}")
 			
 			while node.parent:
@@ -1750,7 +1750,7 @@ class Tree:
 
 	def get_policy(self,search_iters):
 
-		return self.update_tree_nonrecursive_exp(iters=search_iters)
+		return self.update_tree(iters=search_iters)
 
 		# with torch.no_grad():
 		# 	for _ in range(search_iters):

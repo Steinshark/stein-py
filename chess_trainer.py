@@ -46,6 +46,7 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
         
         #Build a local policy 
         t0 =time.time()
+        t0 =time.time()
         local_policy            = MCtree.get_policy(search_iters)
         print(f"built {sum(list(local_policy.values()))} policy in {(time.time()-t0):.2f}s\n{local_policy}")
         
