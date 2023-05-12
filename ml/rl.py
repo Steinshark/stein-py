@@ -17,6 +17,8 @@ from matplotlib import pyplot as plt
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 inf_time = []
+
+
 class QLearner:
 
 	def __init__(	self,
