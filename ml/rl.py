@@ -1348,6 +1348,8 @@ class Chess(Environment):
 
 
 
+
+
 #MCTS Pseudo code 
 
 # 	start with root node 
@@ -1360,7 +1362,7 @@ class Chess(Environment):
 class Node:
 
 
-	def __init__(self,board,p=.5,parent=None,c=5):
+	def __init__(self,board,p=.5,parent=None,c=20):
 
 		self.board 			= board 
 		self.parent 		= parent 
@@ -1589,86 +1591,8 @@ class Tree:
 
 		return -v if started == board.turn else v	  
 	
-	@torch.no_grad()
+	#NEW CHESS NEW USES ONLY 1216 fp32 size tensor vs 33800 for old -> Uses new static method from Chess (fen_to_tensor)
 	def update_tree_nonrecursive(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
-		
-		#DEFINE FUNCTIONS IN LOCAL SCOPE 
-		infer 					= self.model.forward
-		create_repr				= Chess.create_board_img_static
-		noise_gen				= numpy.random.default_rng().dirichlet
-		softmax_fn				= scipy.special.softmax
-		chessmoves_indexer 		= Chess.chess_moves.index
-		try:
-			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
-		except FileNotFoundError:
-			chess_moves 			= json.loads(open(os.path.join("/home/code","steinpy","ml","res","chessmoves.txt"),"r").read())
-		lookups 				= 0
-		lookup_table			= Chess.lookup
-		
-		for _ in range(iters):
-			node = self.root
-			score_mult = 1 if node.board.turn == chess.WHITE else -1 
-
-			while node.children:
-
-				#drive down to leaf
-				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
-				node 				= best_node
-				score_mult			*= -1
-
-			#Check if game over
-			if node.board.outcome():
-				if "1" in node.board.result():
-					if node.board.result()[0] == "1":
-						v 	=   1 * score_mult
-					else:
-						v 	=  -1 * score_mult
-				else:
-					v 	=  0 
-				
-			
-			#expand 
-			else:
-				node.repr 			= create_repr(node.board)
-				 
-				# if node.board.fen() in Chess.lookup:
-				# 	v,legal_moves,legal_probs 				= lookup_table[node.board.fen()] 
-				# 	self.lookups += 1
-
-				prob_cpu:torch.Tensor
-				prob,v 				= infer(node.repr.view(1,2,130,130))
-				prob_cpu			= prob.to(torch.device('cpu'),non_blocking=True)
-				legal_moves 		= [chessmoves_indexer(m.uci()) for m in node.board.legal_moves]
-				legal_probs 		= [prob_cpu[0,i] for i in legal_moves]
-				#lookup_table[node.board.fen()]		= (v,legal_moves,legal_probs)
-
-				noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
-				legal_probs			= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
-
-				node.children 		= {chess_moves[move_i] : Node(node.board.copy(),p=p.item(),parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
-				
-				#map(lambda key: node.children[key].board.push_san(key),node.children)
-				for move in node.children:
-					node.children[move].board.push_san(move)
-				# 	node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
-				
-				if random.random() < rollout_p:
-					v = self.rollout(node.board.copy()) * score_mult
-			
-			#input(f"node is {node}\nchild is {list(node.children.values())[0]}")
-			
-			while node.parent:
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				v *= -1 
-				node = node.parent
-
-		return {move:self.root.children[move].num_visited for move in self.root.children}
-
-
-
-#NEW CHESS NEW USES ONLY 1216 fp32 size tensor vs 33800 for old -> Uses new static method from Chess (fen_to_tensor)
-	def update_tree_nonrecursive_exp(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		infer 					= self.model.forward
@@ -1678,7 +1602,6 @@ class Tree:
 		chessmoves_indexer 		= Chess.chess_moves.index
 		move_to_index 			= Chess.move_to_index
 		index_to_move 			= Chess.index_to_move
-
 
 		try:
 			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
@@ -1693,12 +1616,8 @@ class Tree:
 			node = self.root
 			score_mult = 1 if node.board.turn == chess.WHITE else -1 
 
-			while node.children:
-
-				#drive down to leaf
-				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
-				node 				= best_node
-				score_mult			*= -1
+			#Find best leaf node 
+			node, score_mult = self.get_best_node_max(node,score_mult)
 
 			#Check if game over
 			if node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves() or node.board.is_fifty_moves():
@@ -1734,23 +1653,48 @@ class Tree:
 				
 				if random.random() < rollout_p:
 					v = self.rollout_exp(random.choice(list(node.children.values())).board.copy()) * score_mult
-				
-			#input(f"node is {node}\nchild is {list(node.children.values())[0]}")
-			
+							
 			while node.parent:
+				if isinstance(v,torch.Tensor):
+					v = v.item()
 				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
 				node.num_visited 	+= 1 
 
+				#Try updating score only on leaf nodes
+				# node.score 			= node.get_score()
+				# total_score_calls 	+= 1 
+
 				v *= -1 
 				node = node.parent
-
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
+	def get_best_node_max(self,node:Node,score_mult):
 
+		while node.children:
+				#drive down to leaf
+				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
+				node 				= best_node
+				score_mult			*= -1
+
+		return node, score_mult
+	
+	def get_best_node_for(self,node:Node,score_mult):
+
+		while node.children:
+			best_score			= float("-inf")
+
+			for child in node.children.values():
+				score 			= child.score
+				if score > best_score:
+					best_score 	= score 
+					node 		= child 
+
+			score_mult			*= -1
+		return node, score_mult
 
 	def get_policy(self,search_iters):
-
-		return self.update_tree_nonrecursive_exp(iters=search_iters)
+		
+		return self.update_tree_nonrecursive(iters=search_iters)
 
 		# with torch.no_grad():
 		# 	for _ in range(search_iters):

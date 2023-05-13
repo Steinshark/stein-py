@@ -450,8 +450,10 @@ class ChessNet(FullNet):
             
             torch.nn.Linear(64,1),
             torch.nn.Tanh()
-        ) 
-
+        ).to(device)
+        
+        self.model  = torch.nn.ModuleList([self.conv_layers,self.prob_net,self.value_net])
+        self.set_training_vars()
 
     def forward(self,x):
 
