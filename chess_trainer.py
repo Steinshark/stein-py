@@ -88,7 +88,6 @@ def play_game(draw_thresh,search_iters,model=None,game_num=0):
 
     return game_board.ply()
 
-
 def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=3):
     #model = model.float()
     root                        = f"{dataroot}/chess/experiences/gen{gen}"
