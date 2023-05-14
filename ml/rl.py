@@ -771,12 +771,10 @@ class Chess(Environment):
 	piece_tensors 		= {} 
 
 	lookup_table 		= {}
-	legal_move_table	= {}
 	prob 				= None
 	#Build 200 random noise vectors on the GPU
 	noise				= numpy.random.default_rng()
-	lookup 				= {} 
-	
+
 	def __init__(self,name,device=torch.device('cpu')):
 		super(Chess,self).__init__(name,device=device)
 
@@ -1141,161 +1139,6 @@ class Chess(Environment):
 		return 
 
 
-
-	def create_board_img(self,board_i):
-		
-		if self.move_num	% 2 == 1:
-			turn 	= 1 
-		else:
-			turn 	= -1 
-
-		#Build images from dataset if not available 
-		if len(self.piece_tensors) == 0:
-
-			root = "~/code"
-			for fname in os.listdir(f"{root}/steinpy/ml/res"):
-				if not "light" in fname and not "dark" in fname:
-					continue
-				self.piece_tensors[fname]	= torch.load(os.path.join(f"{root}/steinpy/ml/res",fname))
-
-		#Build base tensors for all games - will only have to update 1 piece 
-		if len(self.state_imgs) == 0:
-			png_bytes									= svg2png(chess.svg.board(chess.Board(),size=str(self.img_size)))	#Always 130
-			img 										= Image.open(BytesIO(png_bytes)).convert("L")						#Convert to greyscale
-			self.base_tensor							= PILToTensor()(img).type(torch.uint8)
-
-			for _ in range(self.simul_games):
-				self.state_imgs[chess.STARTING_FEN] 		= self.base_tensor.clone()
-
-			return self.state_imgs[self.boards[board_i].fen()].clone().type(torch.float)
-
-
-		#Check if we have this position already
-		cur_fen 	= self.boards[board_i].fen()
-
-		if cur_fen in self.state_imgs:
-			return self.state_imgs[cur_fen].clone().type(torch.float)
-		
-
-		#Check if we have this boards last position
-
-		if not len(self.boards[board_i].move_stack) == 0:
-			prev_move   = self.boards[board_i].pop() 
-			prev_fen 	= self.boards[board_i].fen() 
-			self.boards[board_i].push_san(prev_move.uci())
-
-			if prev_fen in self.state_imgs:
-
-				base_tensor		= self.state_imgs[prev_fen]
-				
-				for rank_i, (cur_rank,prev_rank) in enumerate(zip(cur_fen.split(" ")[0].split("/"),prev_fen.split(" ")[0].split("/")),1):
-					rank_i = 9 - rank_i
-					if not cur_rank == prev_rank:
-						cur_rank = cur_rank.replace("1","e").replace("2","ee").replace("3","eee").replace("4","eeee").replace("5","eeeee").replace("6","eeeeee").replace("7","eeeeeee").replace("8","eeeeeeee")
-						#print(cur_rank)
-						for file_x,square in enumerate(cur_rank,1):
-
-							if ((rank_i % 2 == 0) and (file_x % 2 == 0)) or ((rank_i % 2 == 1) and (file_x % 2 == 1)):
-								sq_color = "dark"
-							else:
-								sq_color = "light"
-
-							if square in ["r","n","b","q","k","p"]:
-								color 	= "b"
-							elif square in ["R","N","B","Q","K","P"]:
-								color 	= "w"
-
-							elif square == 'e':
-								color = "w"
-								square 	= "e"
-							
-							tensor_key	= f"{color}_{square}_{sq_color}"
-							tensor 		= self.piece_tensors[tensor_key].clone()
-
-							y,x 	= self.coord_to_xy(rank_i,file_x)
-
-							base_tensor[0,y:y+15,x:x+15]	= tensor
-							#@from torchvision.transforms import ToPILImage
-							#@img = ToPILImage(mode="L")(self.piece_tensors[f"w_P_light"].clone().type(torch.float)).show()
-							#@input(self.piece_tensors[f"w_P_light"])
-
-				self.state_imgs[cur_fen] = base_tensor
-				del self.state_imgs[prev_fen]
-				#from torchvision.transforms import ToPILImage
-				#img = ToPILImage(mode="L")(self.state_imgs[cur_fen].clone().type(torch.float)).show()
-				#input()
-				return self.state_imgs[cur_fen].clone().type(torch.float)
-		
-		base_tensor		= self.base_tensor.clone()
-		for rank_i, cur_rank in enumerate(cur_fen.split(" ")[0].split("/"),1):
-			
-			rank_i = 9 - rank_i
-			cur_rank = cur_rank.replace("1","e").replace("2","ee").replace("3","eee").replace("4","eeee").replace("5","eeeee").replace("6","eeeeee").replace("7","eeeeeee").replace("8","eeeeeeee")
-			#print(cur_rank)
-			for file_x,square in enumerate(cur_rank,1):
-
-				if ((rank_i % 2 == 0) and (file_x % 2 == 0)) or ((rank_i % 2 == 1) and (file_x % 2 == 1)):
-					sq_color = "dark"
-				else:
-					sq_color = "light"
-
-				if square in ["r","n","b","q","k","p"]:
-					color 	= "b"
-				elif square in ["R","N","B","Q","K","P"]:
-					color 	= "w"
-
-				elif square == 'e':
-					color = "w"
-					square 	= "e"
-				
-				tensor_key	= f"{color}_{square}_{sq_color}"
-				tensor 		= self.piece_tensors[tensor_key].clone()
-
-				y,x 	= self.coord_to_xy(rank_i,file_x)
-
-				base_tensor[0,y:y+15,x:x+15]	= tensor
-			return base_tensor.type(torch.float)
-
-	@staticmethod
-	def create_board_img_static(chess_board:chess.Board):
-
-		if not Chess.piece_tensors:
-			root = "/home/steinshark/code"
-			for fname in os.listdir(f"{root}/steinpy/ml/res"):
-				if not "light" in fname and not "dark" in fname:
-					continue
-				Chess.piece_tensors[fname]	= torch.load(os.path.join(f"{root}/steinpy/ml/res",fname)).to(torch.device('cpu')).requires_grad_(False).type(torch.float)
-
-		cur_fen	= chess_board.fen()
-		for rank_i, cur_rank in enumerate(cur_fen.split(" ")[0].split("/"),1):
-			
-			rank_i = 9 - rank_i
-			cur_rank = cur_rank.replace("1","e").replace("2","ee").replace("3","eee").replace("4","eeee").replace("5","eeeee").replace("6","eeeeee").replace("7","eeeeeee").replace("8","eeeeeeee")
-			for file_x,square in enumerate(cur_rank,1):
-				if ((rank_i % 2 == 0) and (file_x % 2 == 0)) or ((rank_i % 2 == 1) and (file_x % 2 == 1)):
-					sq_color = "dark"
-				else:
-					sq_color = "light"
-
-				if square in ["r","n","b","q","k","p"]:
-					color 	= "b"
-				elif square in ["R","N","B","Q","K","P"]:
-					color 	= "w"
-
-				elif square == 'e':
-					color = "w"
-					square 	= "e"
-				
-				tensor_key	= f"{color}_{square}_{sq_color}"
-				tensor		= Chess.piece_tensors[tensor_key]
-
-				y,x 	= Chess.coord_to_xy(rank_i,file_x)
-
-				Chess.base_tensor[0,y:y+15,x:x+15]	= tensor
-		Chess.base_tensor[1]						*= 1 if chess_board.turn == chess.WHITE else -1
-
-		return Chess.base_tensor.clone()
-
 	@staticmethod
 	def fen_to_tensor(board,device):
 
@@ -1591,6 +1434,98 @@ class Tree:
 		return -v if started == board.turn else v	  
 	
 	#NEW CHESS NEW USES ONLY 1216 fp32 size tensor vs 33800 for old -> Uses new static method from Chess (fen_to_tensor)
+	def update_tree_nonrecursive_exp(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
+		
+		#DEFINE FUNCTIONS IN LOCAL SCOPE 
+		infer 					= self.model.forward
+		create_repr				= Chess.fen_to_tensor
+		noise_gen				= numpy.random.default_rng().dirichlet
+		softmax_fn				= scipy.special.softmax
+		chessmoves_indexer 		= Chess.chess_moves.index
+		move_to_index 			= Chess.move_to_index
+		index_to_move 			= Chess.index_to_move
+
+		try:
+			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
+		except FileNotFoundError:
+			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
+		
+		lookups 				= 0
+		lookup_table			= Chess.lookup_table
+		
+		for iter_i in range(iters):
+
+			if iter_i * 10 == 0 and iter_i > 0:
+				torch.cuda.empty_cache()
+			node = self.root
+			score_mult = 1 if node.board.turn == chess.WHITE else -1
+			#print(f"turn was {node.board.turn} -> mult was {score_mult}")
+
+			#Find best leaf node 
+			node, score_mult = self.get_best_node_max(node,score_mult)
+			#print(f"mult now {score_mult}")
+
+			#Check if game over
+			if node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves() or node.board.is_fifty_moves():
+				
+				#print(f"result was {node.board.result()}")
+				if "1" in node.board.result():
+					if node.board.result()[0] == "1":
+						v 	=   1 * score_mult
+					else:
+						v 	=  -1 * score_mult
+				else:
+					v 	=  0 
+				#print(f"found result of {v} in position\n{node.board}\nafter {'white' if node.board.turn else 'black'} moved")
+				#input(f"policy is now/n{[ (Chess.chess_moves[k],v.get_score()) for k,v in self.root.children.items()]}")
+				
+			
+			#expand 
+			else:
+
+				#Do table lookup
+				position_fen = node.board.fen()
+
+				if position_fen in lookup_table:
+					v, legal_moves,legal_probs = lookup_table[position_fen]
+					node.repr 			= None 
+
+				else:
+					node.repr 			= create_repr(node.board,self.device)
+					
+					#	
+					with torch.no_grad():
+						prob,v 				= infer(node.repr.unsqueeze(0))
+					prob_cpu			= prob[0].to(torch.device('cpu'),non_blocking=True)
+					legal_moves 		= [move_to_index[m] for m in node.board.legal_moves]	#Get move numbers
+					legal_probs 		= [prob_cpu[i] for i in legal_moves]
+
+					noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
+					legal_probs			= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
+					lookup_table[node.board.fen()]	= (v,legal_moves,legal_probs)
+				node.children 		= {move_i : Node(node.board.copy(),p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
+				
+				for move in node.children:
+					node.children[move].board.push(index_to_move[move])
+				# 	node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
+				
+				if random.random() < rollout_p:
+					v = self.rollout_exp(random.choice(list(node.children.values())).board.copy()) * score_mult
+							
+			while node.parent:
+				if isinstance(v,torch.Tensor):
+					v = v.item()
+				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
+				node.num_visited 	+= 1 
+
+				#Try updating score only on leaf nodes
+				# node.score 			= node.get_score()
+				# total_score_calls 	+= 1 
+
+				v *= -1 
+				node = node.parent
+		return {move:self.root.children[move].num_visited for move in self.root.children}
+
 	def update_tree_nonrecursive(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
@@ -1638,7 +1573,7 @@ class Tree:
 			#expand 
 			else:
 				node.repr 			= create_repr(node.board,self.device)
-				 
+					
 				#	
 				with torch.no_grad():
 					prob,v 				= infer(node.repr.unsqueeze(0))
@@ -1698,7 +1633,7 @@ class Tree:
 
 	def get_policy(self,search_iters):
 		
-		return self.update_tree_nonrecursive(iters=search_iters)
+		return self.update_tree_nonrecursive_exp(iters=search_iters)
 
 		# with torch.no_grad():
 		# 	for _ in range(search_iters):
