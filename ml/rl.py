@@ -15,9 +15,8 @@ import numpy
 import scipy 
 from matplotlib import pyplot as plt 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
-
 inf_time = []
-
+from steinpy.ml.networks import ChessNet
 
 class QLearner:
 
@@ -1614,14 +1613,17 @@ class Tree:
 		
 		for _ in range(iters):
 			node = self.root
-			score_mult = 1 if node.board.turn == chess.WHITE else -1 
+			score_mult = 1 if node.board.turn == chess.WHITE else -1
+			#print(f"turn was {node.board.turn} -> mult was {score_mult}")
 
 			#Find best leaf node 
 			node, score_mult = self.get_best_node_max(node,score_mult)
+			#print(f"mult now {score_mult}")
 
 			#Check if game over
 			if node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves() or node.board.is_fifty_moves():
 				
+				#print(f"result was {node.board.result()}")
 				if "1" in node.board.result():
 					if node.board.result()[0] == "1":
 						v 	=   1 * score_mult
@@ -1629,6 +1631,8 @@ class Tree:
 						v 	=  -1 * score_mult
 				else:
 					v 	=  0 
+				#print(f"found result of {v} in position\n{node.board}\nafter {'white' if node.board.turn else 'black'} moved")
+				#input(f"policy is now/n{[ (Chess.chess_moves[k],v.get_score()) for k,v in self.root.children.items()]}")
 				
 			
 			#expand 
@@ -1669,7 +1673,7 @@ class Tree:
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
 	def get_best_node_max(self,node:Node,score_mult):
-
+		score_mult *= -1
 		while node.children:
 				#drive down to leaf
 				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
@@ -1705,10 +1709,20 @@ class Tree:
 if __name__ == "__main__":
 	board = chess.Board()
 	board.push_san("e2e4")
-	board.push_san("e7e6")
-	board.push_san("e1e2")
-	tnsr	= Chess.fen_to_tensor(board,torch.device('cpu'))
+	board.push_san("a7a6")
+	board.push_san("f1c4")
+	board.push_san("b7b6")
 
-	#n = networks.ChessNet()
-	n = None
-	print(n.forward(tnsr.unsqueeze(0)).shape)
+
+	model 	= ChessNet()
+	
+	tree 		= Tree(board,model,draw_thresh=200)
+	moves 		= tree.get_policy(600)
+	print(f"in position\n{board}\nbuilt policy:")
+	print(f"chose moves\n{[(Chess.chess_moves[k],v) for k,v in moves.items()]}")
+
+	# next_move 		= random.choices(move_i,visits,k=1)[0]
+	# next_move		= Chess.chess_moves[next_move]
+	# print(f"chose to play {next_move}")
+
+
