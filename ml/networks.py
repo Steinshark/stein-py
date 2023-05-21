@@ -391,35 +391,31 @@ class ChessNet(FullNet):
         self.conv_layers    = torch.nn.Sequential( 
             torch.nn.Conv2d(n_ch,64,3,1,2,bias=False),
             torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=.02),
 
             torch.nn.Conv2d(64,128,3,1,2,bias=False),
             torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=.02),
 
             torch.nn.Conv2d(128,128,3,1,2,bias=False),
             torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=.02),
 
             torch.nn.Conv2d(128,256,3,1,2,bias=False),
             torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=.02),
             torch.nn.AvgPool2d(2),
 
             torch.nn.Conv2d(256,256,5,1,3,bias=False),
             torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=.02),
             torch.nn.AvgPool2d(2),
 
             torch.nn.Conv2d(256,512,5,1,3,bias=False),
             torch.nn.BatchNorm2d(512),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=.02),
             torch.nn.AvgPool2d(2)
 
-            # torch.nn.Conv2d(256,256,3,1,1,bias=False),
-            # torch.nn.BatchNorm2d(256),
-            # torch.nn.ReLU(),
-            # torch.nn.AvgPool2d(2),
 
         ).to(device)
 
@@ -437,18 +433,18 @@ class ChessNet(FullNet):
         ).to(device)
 
         self.value_net  = torch.nn.Sequential( 
-            torch.nn.Conv2d(512,128,3,1,1,bias=False), 
-            torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU(),
+            torch.nn.Conv2d(512,512,3,1,1,bias=False), 
+            torch.nn.BatchNorm2d(512),
+            torch.nn.LeakyReLU(negative_slope=.02),
             torch.nn.AvgPool2d(2),
 
             torch.nn.Flatten(),
 
-            torch.nn.Linear(128,64), 
+            torch.nn.Linear(512,128), 
             torch.nn.Dropout(.25),
-            torch.nn.ReLU(), 
+            torch.nn.LeakyReLU(negative_slope=.02), 
             
-            torch.nn.Linear(64,1),
+            torch.nn.Linear(128,1),
             torch.nn.Tanh()
         ).to(device)
         

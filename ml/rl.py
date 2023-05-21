@@ -1216,6 +1216,7 @@ class Node:
 
 		self.board 			= board 
 		self.parent 		= parent 
+		self.parents 		= [parent]
 		self.children		= {}
 		self.num_visited	= 0
 
@@ -1225,12 +1226,20 @@ class Node:
 
 		self.score 			= 0
 
-
+	
 	def get_score(self):
 		return self.Q_val + ((self.c * self.p) * (sqrt(sum([m.num_visited for m in self.parent.children.values()])) / (1 + self.num_visited)))
 	
+	def bubble_up(self):
+
+		leaves 				= self.parents 
+
+		while leaves:
+			pass
+
 
 class Tree:
+
 	
 	def __init__(self,board,model,base_node=None,draw_thresh=250,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 		self.board 			= board 
@@ -1267,7 +1276,7 @@ class Tree:
 
 		return -v if started == board.turn else v	  
 	
-	def update_tree_nonrecursive_exp(self,x=.95,dirichlet_a=1.0,rollout_p=.5,iters=300,abbrev=True): 
+	def update_tree_nonrecursive_exp(self,x=.8,dirichlet_a=.3,rollout_p=.25,iters=300,abbrev=True): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		infer 					= self.model.forward
@@ -1356,7 +1365,8 @@ class Tree:
 				for move in node.children:
 					node.children[move].board.push(index_to_move[move])
 				
-				if random.random() < rollout_p:
+				#Remove rollout for now
+				if False and random.random() < rollout_p:
 					v = self.rollout_exp(random.choice(list(node.children.values())).board.copy()) * score_mult
 							
 			while node.parent:
