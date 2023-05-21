@@ -1212,7 +1212,7 @@ class Chess(Environment):
 class Node:
 
 
-	def __init__(self,board,p=.5,parent=None,c=1):
+	def __init__(self,board,p=.5,parent=None,c=10):
 
 		self.board 			= board 
 		self.parent 		= parent 
@@ -1267,7 +1267,7 @@ class Tree:
 
 		return -v if started == board.turn else v	  
 	
-	def update_tree_nonrecursive_exp(self,x=.95,dirichlet_a=1.0,rollout_p=0,iters=300,abbrev=True): 
+	def update_tree_nonrecursive_exp(self,x=.95,dirichlet_a=1.0,rollout_p=.5,iters=300,abbrev=True): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		infer 					= self.model.forward
