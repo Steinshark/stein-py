@@ -17,7 +17,11 @@ from matplotlib import pyplot as plt
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 inf_time = []
 from steinpy.ml.networks import ChessNet
+import sys 
 
+import ctypes 
+import subprocess
+sys.path.append("C:/gitrepos/steinpy/ml")
 class QLearner:
 
 	def __init__(	self,
@@ -770,7 +774,7 @@ class Chess(Environment):
 	created_base 		= False
 	piece_tensors 		= {} 
 
-	lookup_table 		= {}
+	lookup_table 		= dict()
 	prob 				= None
 	#Build 200 random noise vectors on the GPU
 	noise				= numpy.random.default_rng()
@@ -1146,8 +1150,9 @@ class Chess(Environment):
 		#	7 for whilte, 7 for black 
 		#	4 for castling 7+7+4 
 		# 	1 for move 
-		board_tensor 	= torch.zeros(size=(19,8,8),device=device,dtype=torch.float)
-		
+		#t0 = time.time()
+		#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
+		board_tensor 	= numpy.zeros(shape=(19,8,8))
 		piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
 		#Go through FEN and fill pieces
 		fen 	= board.fen()
@@ -1164,16 +1169,19 @@ class Chess(Environment):
 				if not piece == "e":
 					board_tensor[piece_indx[piece],rank_i,file_i]	= 1.  
 		
+		#print(f"init took {(time.time()-t0)}")
 		#Place turn 
 		slice 	= 12 
-		board_tensor[slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
+		#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
+		board_tensor[slice,:,:]   = numpy.ones(shape=(8,8)) * 1 if turn == "w" else -1
 
 		#Place all castling allows 
 		for castle in ["K","Q","k","q"]:
 			slice += 1
-			board_tensor[slice,:,:]	= torch.ones(size=(8,8)) * 1 if castle in castling else 0
+			#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if castle in castling else 0
+			board_tensor[slice,:,:]	= numpy.ones(shape=(8,8)) * 1 if castle in castling else 0
 
-		return board_tensor
+		return torch.tensor(board_tensor,dtype=torch.float,device=device,requires_grad=False)
 
 		
 
@@ -1204,7 +1212,7 @@ class Chess(Environment):
 class Node:
 
 
-	def __init__(self,board,p=.5,parent=None,c=20):
+	def __init__(self,board,p=.5,parent=None,c=1):
 
 		self.board 			= board 
 		self.parent 		= parent 
@@ -1224,11 +1232,10 @@ class Node:
 
 class Tree:
 	
-	def __init__(self,board,model,base_node=None,draw_thresh=250,lookups=0,device=torch.device('cpu')):
+	def __init__(self,board,model,base_node=None,draw_thresh=250,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 		self.board 			= board 
 		self.model 			= model 
 		self.draw_thresh	= draw_thresh
-		self.lookups 		= lookups
 		self.device	 		= device
 
 		if base_node: 
@@ -1237,178 +1244,6 @@ class Tree:
 		else:
 			self.root 			= Node(board,0,None)
 			self.root.parent	= None 
-
-
-	def update_tree(self,node:Node,x=.75,dirichlet_a=1.0,rollout_p=.1,rollout=False):
-		
-		#If gameover return game result 
-		if (node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves()):
-			if "1" in node.board.result():
-				if node.board.result()[0] == "1":
-					node.Q_val 			= (node.num_visited * node.Q_val + 1) / (node.num_visited + 1) 
-					node.num_visited 	+= 1 
-					return 1 
-				else:
-					node.Q_val 			= (node.num_visited * node.Q_val + -1) / (node.num_visited + 1) 
-					node.num_visited 	+= 1 
-					return -1 
-			else:
-				node.Q_val 			= (node.num_visited * node.Q_val + 0) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				return 0 
-			
-		#If not explored, expand out children and return v value
-		if not node.children:
-		
-			#Initialize repr 
-			node.repr 			= Chess.create_board_img_static(node.board)
-			#Get prob and v
-			
-			with torch.no_grad():
-				prob,v 			= self.model.forward(node.repr.unsqueeze(0))
-			#NUMPY VERSION 	
-			prob			= prob.cpu()
-			legal_moves 	= [Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves]			#POTENTIALLY BUILD DICT OF MOVE OBJ AND DO EASY O(1) lookup!!!
-			legal_probs 	= [prob[0][i] for i in legal_moves]
-			#Apply dirichlet noise 
-			noise 			= Chess.noise.dirichlet([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
-			legal_probs		= scipy.special.softmax([x*p for p in legal_probs] + (1-x)*noise)[0]
-
-			#Add to lookup 
-			#Chess.lookup_table[node.board.fen()]	= (node.repr,legal_probs,legal_moves,v)
-			#NUMPY VERSION
-
-			for prob,move_i in zip(legal_probs,legal_moves):
-				
-				#clone board and push move 
-				child_board										= node.board.copy()
-				child_board.push_san(Chess.chess_moves[move_i])												# SEE NOTE ABOVE, ONLY NEED TO PUSH MAOVE, PUSH_SAN is slow
-				node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
-			
-			if random.random() < rollout_p:
-				v = self.rollout(child_board.copy())
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				return -v
-			else:
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				return -v 
-
-		#best_score			= float('inf') * -1 
-		best_node 			= None 
-
-
-		best_node = max(list(node.children.values()),key = lambda x: x.get_score())
-
-		v 					= self.update_tree(best_node)
-		#Update Q val 
-		node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-		node.num_visited 	+= 1 
-
-		#Return the negative val (for opposing player)
-		return -v 
-
-	def update_tree_memoize(self,node:Node,x=.75,dirichlet_a=1.0,rollout_p=.5,rollout=False):
-		
-		#If gameover return game result 
-		if node.board.outcome():
-			if "1" in node.board.result():
-				if node.board.result()[0] == "1":
-					node.Q_val 			= (node.num_visited * node.Q_val + 1) / (node.num_visited + 1) 
-					node.num_visited 	+= 1 
-					return 1 
-				else:
-					node.Q_val 			= (node.num_visited * node.Q_val + -1) / (node.num_visited + 1) 
-					node.num_visited 	+= 1 
-					return -1 
-			else:
-				node.Q_val 			= (node.num_visited * node.Q_val + 0) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				return 0 
-			
-		#If not explored, expand out children and return v value
-		if not node.children:
-			if node.board.fen() in Chess.lookup_table:
-				node.repr,legal_probs,legal_moves,v = Chess.lookup_table[node.board.fen()]
-				#print(f"used lookup")
-			else:
-				#Initialize repr 
-				node.repr 			= Chess.create_board_img_static(node.board)
-				#Get prob and v
-				
-				with torch.no_grad():
-					prob,v 			= self.model(node.repr.view(1,2,130,130))
-				#NUMPY VERSION 	
-				prob			= prob.cpu()
-				legal_moves 	= [Chess.chess_moves.index(m.uci()) for m in node.board.legal_moves]
-				legal_probs 	= [prob[0][i] for i in legal_moves]
-				#Apply dirichlet noise 
-				noise 			= Chess.noise.dirichlet([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
-				legal_probs		= [x*p for p in legal_probs] + (1-x)*noise
-				legal_probs		= scipy.special.softmax(legal_probs)[0]
-
-				#Add to lookup 
-				Chess.lookup_table[node.board.fen()]	= (node.repr,legal_probs,legal_moves,v)
-				#NUMPY VERSION
-
-			for prob,move_i in zip(legal_probs,legal_moves):
-				
-				#clone board and push move 
-				child_board										= node.board.copy()
-				child_board.push_san(Chess.chess_moves[move_i])
-				node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
-			
-			if random.random() < rollout_p:
-				v = self.rollout(child_board.copy())
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				return -v
-			else:
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-				return -v 
-
-		#best_score			= float('inf') * -1 
-		best_node 			= None 
-
-
-		best_node = max(list(node.children.values()),key = lambda x: x.get_score())
-
-		
-
-
-		v 					= self.update_tree_memoize(best_node)
-		#Update Q val 
-		node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-		node.num_visited 	+= 1 
-
-		#Return the negative val (for opposing player)
-		return -v 
-
-	def rollout(self,board:chess.Board):
-		started 	= board.turn
-		
-		#If gameover return game result 
-		res 	= board.result()
-		while res == "*":
-			
-			#If over draw thresh, return 0
-			if board.ply() > self.draw_thresh:
-				return 0
-			
-			#Else make move according to rollout policy (currently random)
-			board.push(random.choice(list(board.legal_moves)))
-			res 	= board.result()
-		
-		if res[0] == "1":
-			v = 1 
-		elif res[-1] == "1":
-			v =  -1 
-		else:
-			v = 0
-
-		return -v if started == board.turn else v
 
 	def rollout_exp(self,board:chess.Board):
 		started 	= board.turn
@@ -1420,8 +1255,7 @@ class Tree:
 			if board.ply() > self.draw_thresh:
 				return 0
 			
-			#Else make move according to rollout policy (currently random)
-			board.push(random.choice(list(board.legal_moves)))
+			board.push(random.choice(list(board.generate_legal_moves())))
 		
 		res = board.result()
 		if res[0] == "1":
@@ -1433,8 +1267,7 @@ class Tree:
 
 		return -v if started == board.turn else v	  
 	
-	#NEW CHESS NEW USES ONLY 1216 fp32 size tensor vs 33800 for old -> Uses new static method from Chess (fen_to_tensor)
-	def update_tree_nonrecursive_exp(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
+	def update_tree_nonrecursive_exp(self,x=.95,dirichlet_a=1.0,rollout_p=0,iters=300,abbrev=True): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		infer 					= self.model.forward
@@ -1445,6 +1278,7 @@ class Tree:
 		move_to_index 			= Chess.move_to_index
 		index_to_move 			= Chess.index_to_move
 
+		t_test 					=  0
 		try:
 			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
 		except FileNotFoundError:
@@ -1452,7 +1286,9 @@ class Tree:
 		
 		lookups 				= 0
 		lookup_table			= Chess.lookup_table
-		
+		self.root.parent		= None 
+		flag					= True
+		debugging 				= False 
 		for iter_i in range(iters):
 
 			if iter_i * 10 == 0 and iter_i > 0:
@@ -1466,9 +1302,9 @@ class Tree:
 			#print(f"mult now {score_mult}")
 
 			#Check if game over
-			if node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves() or node.board.is_fifty_moves():
-				
-				#print(f"result was {node.board.result()}")
+
+			game_over 	= node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves()
+			if game_over:
 				if "1" in node.board.result():
 					if node.board.result()[0] == "1":
 						v 	=   1 * score_mult
@@ -1476,15 +1312,21 @@ class Tree:
 						v 	=  -1 * score_mult
 				else:
 					v 	=  0 
-				#print(f"found result of {v} in position\n{node.board}\nafter {'white' if node.board.turn else 'black'} moved")
-				#input(f"policy is now/n{[ (Chess.chess_moves[k],v.get_score()) for k,v in self.root.children.items()]}")
-				
+				if flag and debugging:
+					print(f"result was {node.board.result()}")
+					print(f"found result of {v} in position\n{node.board}\nafter {'white' if node.board.turn else 'black'} moved")
+					continuing = input(f"policy is now/n{[ (Chess.chess_moves[k],v.get_score()) for k,v in self.root.children.items()]}")
+					if continuing == "stop":
+						flag = False
 			
 			#expand 
 			else:
 
 				#Do table lookup
-				position_fen = node.board.fen()
+				if abbrev:
+					position_fen = node.board.fen().split(" ")[0]
+				else:
+					position_fen = node.board.fen()
 
 				if position_fen in lookup_table:
 					v, legal_moves,legal_probs = lookup_table[position_fen]
@@ -1496,18 +1338,23 @@ class Tree:
 					#	
 					with torch.no_grad():
 						prob,v 				= infer(node.repr.unsqueeze(0))
-					prob_cpu			= prob[0].to(torch.device('cpu'),non_blocking=True)
+					prob_cpu			= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
 					legal_moves 		= [move_to_index[m] for m in node.board.legal_moves]	#Get move numbers
 					legal_probs 		= [prob_cpu[i] for i in legal_moves]
 
-					noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
+					noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)
+					#input(f"noise yields: {noise}")
 					legal_probs			= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
-					lookup_table[node.board.fen()]	= (v,legal_moves,legal_probs)
-				node.children 		= {move_i : Node(node.board.copy(),p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
-				
+					#input(f"model yields probs: {legal_probs}")
+					lookup_table[position_fen]	= (v,legal_moves,legal_probs)
+
+				if debugging:
+					input(f"\n{node.board}\nposition evaluates to {v}")
+				node.children 		= {move_i : Node(node.board.copy(stack=False) ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
+
+
 				for move in node.children:
 					node.children[move].board.push(index_to_move[move])
-				# 	node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
 				
 				if random.random() < rollout_p:
 					v = self.rollout_exp(random.choice(list(node.children.values())).board.copy()) * score_mult
@@ -1524,87 +1371,7 @@ class Tree:
 
 				v *= -1 
 				node = node.parent
-		return {move:self.root.children[move].num_visited for move in self.root.children}
-
-	def update_tree_nonrecursive(self,x=.9,dirichlet_a=1.0,rollout_p=.02,iters=300):
 		
-		#DEFINE FUNCTIONS IN LOCAL SCOPE 
-		infer 					= self.model.forward
-		create_repr				= Chess.fen_to_tensor
-		noise_gen				= numpy.random.default_rng().dirichlet
-		softmax_fn				= scipy.special.softmax
-		chessmoves_indexer 		= Chess.chess_moves.index
-		move_to_index 			= Chess.move_to_index
-		index_to_move 			= Chess.index_to_move
-
-		try:
-			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
-		except FileNotFoundError:
-			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
-		
-		lookups 				= 0
-		lookup_table			= Chess.lookup
-		legal_move_table		= Chess.legal_move_table
-		
-		for _ in range(iters):
-			node = self.root
-			score_mult = 1 if node.board.turn == chess.WHITE else -1
-			#print(f"turn was {node.board.turn} -> mult was {score_mult}")
-
-			#Find best leaf node 
-			node, score_mult = self.get_best_node_max(node,score_mult)
-			#print(f"mult now {score_mult}")
-
-			#Check if game over
-			if node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves() or node.board.is_fifty_moves():
-				
-				#print(f"result was {node.board.result()}")
-				if "1" in node.board.result():
-					if node.board.result()[0] == "1":
-						v 	=   1 * score_mult
-					else:
-						v 	=  -1 * score_mult
-				else:
-					v 	=  0 
-				#print(f"found result of {v} in position\n{node.board}\nafter {'white' if node.board.turn else 'black'} moved")
-				#input(f"policy is now/n{[ (Chess.chess_moves[k],v.get_score()) for k,v in self.root.children.items()]}")
-				
-			
-			#expand 
-			else:
-				node.repr 			= create_repr(node.board,self.device)
-					
-				#	
-				with torch.no_grad():
-					prob,v 				= infer(node.repr.unsqueeze(0))
-				prob_cpu			= prob[0].to(torch.device('cpu'),non_blocking=True)
-				legal_moves 		= [move_to_index[m] for m in node.board.legal_moves]	#Get move numbers
-				legal_probs 		= [prob_cpu[i] for i in legal_moves]
-
-				noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],len(legal_probs))
-				legal_probs			= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
-
-				node.children 		= {move_i : Node(node.board.copy(),p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
-				
-				for move in node.children:
-					node.children[move].board.push(index_to_move[move])
-				# 	node.children[Chess.chess_moves[move_i]]		= Node(child_board,p=prob,parent=node)
-				
-				if random.random() < rollout_p:
-					v = self.rollout_exp(random.choice(list(node.children.values())).board.copy()) * score_mult
-							
-			while node.parent:
-				if isinstance(v,torch.Tensor):
-					v = v.item()
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
-
-				#Try updating score only on leaf nodes
-				# node.score 			= node.get_score()
-				# total_score_calls 	+= 1 
-
-				v *= -1 
-				node = node.parent
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
 	def get_best_node_max(self,node:Node,score_mult):
@@ -1617,23 +1384,9 @@ class Tree:
 
 		return node, score_mult
 	
-	def get_best_node_for(self,node:Node,score_mult):
-
-		while node.children:
-			best_score			= float("-inf")
-
-			for child in node.children.values():
-				score 			= child.score
-				if score > best_score:
-					best_score 	= score 
-					node 		= child 
-
-			score_mult			*= -1
-		return node, score_mult
-
-	def get_policy(self,search_iters):
+	def get_policy(self,search_iters,abbrev=True):
 		
-		return self.update_tree_nonrecursive_exp(iters=search_iters)
+		return self.update_tree_nonrecursive_exp(iters=search_iters,abbrev=abbrev)
 
 		# with torch.no_grad():
 		# 	for _ in range(search_iters):
@@ -1649,15 +1402,20 @@ if __name__ == "__main__":
 	board.push_san("b7b6")
 
 
-	model 	= ChessNet()
+	for _ in range(100):
+		command 	= f"test {board.fen().replace(' ', 'X')} 2"
+		out = os.popen(command,shell=True).read()
+	print(out)
+	# model 	= ChessNet()
 	
-	tree 		= Tree(board,model,draw_thresh=200)
-	moves 		= tree.get_policy(600)
-	print(f"in position\n{board}\nbuilt policy:")
-	print(f"chose moves\n{[(Chess.chess_moves[k],v) for k,v in moves.items()]}")
+	# tree 		= Tree(board,model,draw_thresh=200)
+	# moves 		= tree.get_policy(600)
+	# print(f"in position\n{board}\nbuilt policy:")
+	# print(f"chose moves\n{[(Chess.chess_moves[k],v) for k,v in moves.items()]}")
 
-	# next_move 		= random.choices(move_i,visits,k=1)[0]
-	# next_move		= Chess.chess_moves[next_move]
-	# print(f"chose to play {next_move}")
+	# # next_move 		= random.choices(move_i,visits,k=1)[0]
+	# # next_move		= Chess.chess_moves[next_move]
+	# # print(f"chose to play {next_move}")
+
 
 

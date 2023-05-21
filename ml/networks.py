@@ -433,7 +433,7 @@ class ChessNet(FullNet):
             torch.nn.Linear(2048,1968),
             torch.nn.Dropout(.1),
             torch.nn.ReLU(),
-            torch.nn.Softmax(dim=0)
+            torch.nn.Softmax(dim=1)
         ).to(device)
 
         self.value_net  = torch.nn.Sequential( 
