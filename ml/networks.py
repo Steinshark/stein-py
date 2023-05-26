@@ -381,7 +381,7 @@ class ChessNet(FullNet):
                  loss_fn=torch.nn.MSELoss,
                  optimizer=torch.optim.Adam,
                  optimizer_kwargs={"lr":1e-5,"weight_decay":1e-6},
-                 device=torch.device('cpu'),
+                 device=torch.device('cuda'),
                  n_ch=19
                  ):
         
@@ -389,32 +389,35 @@ class ChessNet(FullNet):
         
         
         self.conv_layers    = torch.nn.Sequential( 
-            torch.nn.Conv2d(n_ch,64,3,1,2,bias=False),
+            torch.nn.Conv2d(n_ch,32,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.LeakyReLU(negative_slope=.02),
+
+            torch.nn.Conv2d(32,64,3,1,1,bias=False),
             torch.nn.BatchNorm2d(64),
             torch.nn.LeakyReLU(negative_slope=.02),
 
-            torch.nn.Conv2d(64,128,3,1,2,bias=False),
+            torch.nn.Conv2d(64,64,3,1,1,bias=False),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.LeakyReLU(negative_slope=.02),
+
+            torch.nn.Conv2d(64,128,3,1,1,bias=False),
             torch.nn.BatchNorm2d(128),
             torch.nn.LeakyReLU(negative_slope=.02),
 
-            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.Conv2d(128,128,3,1,1,bias=False),
             torch.nn.BatchNorm2d(128),
             torch.nn.LeakyReLU(negative_slope=.02),
 
-            torch.nn.Conv2d(128,256,3,1,2,bias=False),
+            torch.nn.Conv2d(128,128,3,1,1,bias=False),
+            torch.nn.BatchNorm2d(128),
+            torch.nn.LeakyReLU(negative_slope=.02),
+            torch.nn.MaxPool2d(2),
+
+            torch.nn.Conv2d(128,256,3,1,1,bias=False),
             torch.nn.BatchNorm2d(256),
             torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.AvgPool2d(2),
-
-            torch.nn.Conv2d(256,256,5,1,3,bias=False),
-            torch.nn.BatchNorm2d(256),
-            torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.AvgPool2d(2),
-
-            torch.nn.Conv2d(256,512,5,1,3,bias=False),
-            torch.nn.BatchNorm2d(512),
-            torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.AvgPool2d(2)
+            torch.nn.MaxPool2d(2)
 
 
         ).to(device)
@@ -422,25 +425,27 @@ class ChessNet(FullNet):
         self.prob_net   = torch.nn.Sequential(  
             torch.nn.Flatten(),
 
-            torch.nn.Linear(4608,2048),
+            torch.nn.Linear(1024,1024),
             torch.nn.Dropout(.4),
             torch.nn.ReLU(),
 
-            torch.nn.Linear(2048,1968),
+            torch.nn.Linear(1024,1968),
             torch.nn.Dropout(.1),
             torch.nn.ReLU(),
             torch.nn.Softmax(dim=1)
         ).to(device)
 
         self.value_net  = torch.nn.Sequential( 
-            torch.nn.Conv2d(512,512,3,1,1,bias=False), 
-            torch.nn.BatchNorm2d(512),
+            torch.nn.Conv2d(256,256,3,1,1,bias=False), 
             torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.AvgPool2d(2),
+            #torch.nn.MaxPool2d(256),
+
+            torch.nn.Conv2d(256,256,2,1,0,bias=False), 
+            torch.nn.LeakyReLU(negative_slope=.02),
 
             torch.nn.Flatten(),
 
-            torch.nn.Linear(512,128), 
+            torch.nn.Linear(256,128), 
             torch.nn.Dropout(.25),
             torch.nn.LeakyReLU(negative_slope=.02), 
             
@@ -448,7 +453,7 @@ class ChessNet(FullNet):
             torch.nn.Tanh()
         ).to(device)
         
-        self.model  = torch.nn.ModuleList([self.conv_layers,self.prob_net,self.value_net])
+        self.model  = torch.nn.ModuleList([self.conv_layers,self.prob_net,self.value_net]).to(device)
         self.set_training_vars()
 
     def forward(self,x):

@@ -15,12 +15,12 @@ import numpy
 import scipy 
 from matplotlib import pyplot as plt 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
-inf_time = []
 from steinpy.ml.networks import ChessNet
 import sys 
 
 import ctypes 
 import subprocess
+from memory_profiler import profile 
 sys.path.append("C:/gitrepos/steinpy/ml")
 class QLearner:
 
@@ -1246,7 +1246,6 @@ class Tree:
 		self.model 			= model 
 		self.draw_thresh	= draw_thresh
 		self.device	 		= device
-
 		if base_node: 
 			self.root 			= base_node
 			self.root.parent 	= None
@@ -1283,9 +1282,9 @@ class Tree:
 		create_repr				= Chess.fen_to_tensor
 		noise_gen				= numpy.random.default_rng().dirichlet
 		softmax_fn				= scipy.special.softmax
-		chessmoves_indexer 		= Chess.chess_moves.index
 		move_to_index 			= Chess.move_to_index
 		index_to_move 			= Chess.index_to_move
+
 
 		t_test 					=  0
 		try:
@@ -1293,8 +1292,6 @@ class Tree:
 		except FileNotFoundError:
 			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 		
-		lookups 				= 0
-		lookup_table			= Chess.lookup_table
 		self.root.parent		= None 
 		flag					= True
 		debugging 				= False 
@@ -1333,29 +1330,30 @@ class Tree:
 
 				#Do table lookup
 				if abbrev:
-					position_fen = node.board.fen().split(" ")[0]
+					position_fen 			= node.board.fen().split(" ")[0]
 				else:
-					position_fen = node.board.fen()
+					position_fen 			= node.board.fen()
 
-				if position_fen in lookup_table:
-					v, legal_moves,legal_probs = lookup_table[position_fen]
-					node.repr 			= None 
+				# if position_fen in self.lookup_table:
+				# 	v, legal_moves,legal_probs = self.lookup_table[position_fen]
+				# 	node.repr 				= None 
 
-				else:
-					node.repr 			= create_repr(node.board,self.device)
-					
-					#	
-					with torch.no_grad():
-						prob,v 				= infer(node.repr.unsqueeze(0))
-					prob_cpu			= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
-					legal_moves 		= [move_to_index[m] for m in node.board.legal_moves]	#Get move numbers
-					legal_probs 		= [prob_cpu[i] for i in legal_moves]
+				# else:
+				node.repr 				= create_repr(node.board,self.device)
+				
+				#	
+				with torch.no_grad():
+					model_in 					= node.repr.unsqueeze(0)
+					prob,v 						= infer(model_in)
+				prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
+				legal_moves 				= [move_to_index[m] for m in node.board.legal_moves]	#Get move numbers
+				legal_probs 				= [prob_cpu[i] for i in legal_moves]
 
-					noise 				= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)
-					#input(f"noise yields: {noise}")
-					legal_probs			= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
-					#input(f"model yields probs: {legal_probs}")
-					lookup_table[position_fen]	= (v,legal_moves,legal_probs)
+				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)
+				#input(f"noise yields: {noise}")
+				legal_probs					= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
+				#input(f"model yields probs: {legal_probs}")
+				#self.lookup_table[position_fen]	=	 (v,legal_moves,legal_probs)
 
 				if debugging:
 					input(f"\n{node.board}\nposition evaluates to {v}")
