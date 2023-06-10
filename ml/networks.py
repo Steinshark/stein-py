@@ -3,6 +3,7 @@
 
 
 import torch 
+from torch.utils.data import Dataset
 from typing import OrderedDict
 
 #   This type of network will contain all 
@@ -387,45 +388,35 @@ class ChessNet(FullNet):
         
         super(ChessNet,self).__init__(loss_fn=loss_fn,optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,device=device)\
         
+        self.conv_layers_res     = [] 
+
+        layers          =    {0:256,1:256,2:256,3:256,4:256,5:256,6:256,7:256,8:256,9:256,10:256,11:256,12:256,13:256,14:256,15:256,16:256,17:256,18:256}
+
+        for i in range(len(layers)):
+            if i == 0:
+                prev_ch  = n_ch 
+            else:
+                prev_ch = layers[i-1]
+            
+            cur_ch = layers[i]
+
+            self.conv_layers_res.append(
+                torch.nn.Sequential(
+                    torch.nn.Conv2d(prev_ch,cur_ch,3,1,1,bias=False),
+                    torch.nn.BatchNorm2d(cur_ch),
+                
+                    torch.nn.ReLU(),
+
+                    torch.nn.Conv2d(cur_ch,cur_ch,3,1,1,bias=False),
+                    torch.nn.BatchNorm2d(cur_ch),
+        ).to(device))
         
-        self.conv_layers    = torch.nn.Sequential( 
-            torch.nn.Conv2d(n_ch,32,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.LeakyReLU(negative_slope=.02),
 
-            torch.nn.Conv2d(32,64,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.LeakyReLU(negative_slope=.02),
-
-            torch.nn.Conv2d(64,64,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.LeakyReLU(negative_slope=.02),
-
-            torch.nn.Conv2d(64,128,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.LeakyReLU(negative_slope=.02),
-
-            torch.nn.Conv2d(128,128,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.LeakyReLU(negative_slope=.02),
-
-            torch.nn.Conv2d(128,128,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.MaxPool2d(2),
-
-            torch.nn.Conv2d(128,256,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(256),
-            torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.MaxPool2d(2)
-
-
-        ).to(device)
 
         self.prob_net   = torch.nn.Sequential(  
             torch.nn.Flatten(),
 
-            torch.nn.Linear(1024,1024),
+            torch.nn.Linear(16384,1024),
             torch.nn.Dropout(.4),
             torch.nn.ReLU(),
 
@@ -438,14 +429,14 @@ class ChessNet(FullNet):
         self.value_net  = torch.nn.Sequential( 
             torch.nn.Conv2d(256,256,3,1,1,bias=False), 
             torch.nn.LeakyReLU(negative_slope=.02),
-            #torch.nn.MaxPool2d(256),
+            torch.nn.MaxPool2d(2),
 
-            torch.nn.Conv2d(256,256,2,1,0,bias=False), 
+            torch.nn.Conv2d(256,256,3,1,1,bias=False), 
             torch.nn.LeakyReLU(negative_slope=.02),
-
+            torch.nn.MaxPool2d(2),
             torch.nn.Flatten(),
 
-            torch.nn.Linear(256,128), 
+            torch.nn.Linear(1024,128), 
             torch.nn.Dropout(.25),
             torch.nn.LeakyReLU(negative_slope=.02), 
             
@@ -453,11 +444,94 @@ class ChessNet(FullNet):
             torch.nn.Tanh()
         ).to(device)
         
-        self.model  = torch.nn.ModuleList([self.conv_layers,self.prob_net,self.value_net]).to(device)
+        self.model  = torch.nn.ModuleList(self.conv_layers_res+[self.prob_net]+[self.value_net]).to(device)
         self.set_training_vars()
 
-    def forward(self,x):
+    def forward_old(self,x):
 
         conv_forward_pass   = self.conv_layers(x) 
 
         return self.prob_net(conv_forward_pass), self.value_net(conv_forward_pass)
+
+    def forward(self,x):
+
+        prev_out        = self.conv_layers_res[0](x)
+        reluer          = torch.nn.ReLU()
+
+        for layer in self.conv_layers_res[1:]:
+            cur_out         = layer(prev_out)
+            prev_out        = reluer(cur_out+prev_out)
+            
+        return self.prob_net(prev_out), self.value_net(prev_out)
+        
+class ChessNetCompat(torch.nn.Module):
+    def __init__(self,
+                 loss_fn=torch.nn.MSELoss,
+                 optimizer=torch.optim.Adam,
+                 optimizer_kwargs={"lr":1e-5,"weight_decay":1e-6},
+                 device=torch.device('cuda'),
+                 n_ch=19
+                 ):
+        
+        super(ChessNetCompat,self).__init__()
+        
+
+        self.conv_layers = torch.nn.Conv2d(n_ch,256,3,1,1,bias=False)
+
+    
+        
+
+
+        # self.prob_net   = torch.nn.Sequential(  
+        #     torch.nn.Flatten(),
+
+        #     torch.nn.Linear(16384,1024),
+        #     torch.nn.Dropout(.4),
+        #     torch.nn.ReLU(),
+
+        #     torch.nn.Linear(1024,1968),
+        #     torch.nn.Dropout(.1),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Softmax(dim=1)
+        # ).to(device)
+
+        # self.value_net  = torch.nn.Sequential( 
+        #     torch.nn.Conv2d(256,256,3,1,1,bias=False), 
+        #     torch.nn.LeakyReLU(negative_slope=.02),
+        #     torch.nn.MaxPool2d(2),
+
+        #     torch.nn.Conv2d(256,256,3,1,1,bias=False), 
+        #     torch.nn.LeakyReLU(negative_slope=.02),
+        #     torch.nn.MaxPool2d(2),
+        #     torch.nn.Flatten(),
+
+        #     torch.nn.Linear(1024,128), 
+        #     torch.nn.Dropout(.25),
+        #     torch.nn.LeakyReLU(negative_slope=.02), 
+            
+        #     torch.nn.Linear(128,1),
+        #     torch.nn.Tanh()
+        # ).to(device)
+        
+        # self.model  = torch.nn.ModuleList([self.conv_layers,self.prob_net,self.value_net]).to(device)
+
+    def forward(self,x):
+        conv_forward_pass   = self.conv_layers(x) 
+        #outp                = self.prob_net(conv_forward_pass)
+        return conv_forward_pass#, self.value_net(conv_forward_pass)
+
+        
+
+
+class ChessDataset(Dataset):
+
+    def __init__(self,experience_set):
+        self.data   = experience_set
+
+    
+    def __getitem__(self, i):
+        return self.data[i]
+
+    def __len__(self):
+        return len(self.data)
+    
