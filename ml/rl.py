@@ -6,18 +6,18 @@ import tkinter as tk
 import chess
 import chess.svg
 import json 
-from cairosvg import svg2png
 from math import sqrt 
 import numpy 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import sys 
 import pycuda.driver as cuda_driver
 import numpy 
-from memory_profiler import profile 
+from sklearn.utils import extmath 
 
 def softmax(x):
-    e_x = numpy.exp(x - numpy.max(x))
-    return e_x / e_x.sum(axis=0) # only difference
+	if len(x.shape) < 2:
+		x = numpy.asarray([x],dtype=float)
+	return extmath.softmax(x)[0]
 
 sys.path.append("C:/gitrepos/steinpy/ml")
 class QLearner:
@@ -787,8 +787,8 @@ class Chess(Environment):
 
 
 	def init_environment(	self,
-		      				self_model,
-						    adversary_model,
+			  				self_model,
+							adversary_model,
 							simul_games=10,
 							rewards={"capture":.1,"captured":-.1,"win":1,"lose":-1,"draw":0},
 							img_dims=(480,270),
@@ -1142,18 +1142,18 @@ class Chess(Environment):
 
 
 	@staticmethod
-	def fen_to_tensor(board,device):
+	def fen_to_tensor(board,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),is_fen=False,no_castle=False):
 
 		#Encoding will be an 8x8 x n tensor 
-		#	7 for whilte, 7 for black 
-		#	4 for castling 7+7+4 
+		#	6 for white, 6 for black 
+		#	OPTIONALLY 4 for castling 7+7+4 
 		# 	1 for move 
-		#t0 = time.time()
-		#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
-		board_tensor 	= numpy.zeros(shape=(19,8,8))
-		piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
+		board_tensor 	= numpy.zeros(shape=(13 if no_castle else 17,8,8))
+		piece_indx 		= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
 		#Go through FEN and fill pieces
-		fen 	= board.fen()
+
+		fen 	= board.fen() if not is_fen else board
+		
 		for i in range(1,9):
 			fen 	= fen.replace(str(i),"e"*i)
 
@@ -1167,16 +1167,13 @@ class Chess(Environment):
 				if not piece == "e":
 					board_tensor[piece_indx[piece],rank_i,file_i]	= 1.  
 		
-		#print(f"init took {(time.time()-t0)}")
 		#Place turn 
 		slice 	= 12 
-		#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
 		board_tensor[slice,:,:]   = numpy.ones(shape=(8,8)) * 1 if turn == "w" else -1
 
-		#Place all castling allows 
-		for castle in ["K","Q","k","q"]:
+		#Place all castling allows if not no_castle
+		for castle in [] if no_castle else ["K","Q","k","q"] :
 			slice += 1
-			#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if castle in castling else 0
 			board_tensor[slice,:,:]	= numpy.ones(shape=(8,8)) * 1 if castle in castling else 0
 
 		return torch.tensor(board_tensor,dtype=torch.float,device=device,requires_grad=False)
@@ -1184,13 +1181,13 @@ class Chess(Environment):
 	@staticmethod
 	def fen_to_numpy_np(board):
 
-		#Encoding will be an 8x8 x n tensor 
+		#Encoding will be a 19x8x8  tensor 
 		#	7 for whilte, 7 for black 
 		#	4 for castling 7+7+4 
 		# 	1 for move 
 		#t0 = time.time()
 		#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
-		board_tensor 	= numpy.zeros(shape=(19,8,8),dtype=numpy.float32)
+		board_tensor 	= numpy.zeros(shape=(17,8,8),dtype=numpy.float32)
 		piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
 		#Go through FEN and fill pieces
 		fen 	= board.fen()
@@ -1249,13 +1246,14 @@ class Chess(Environment):
 class Node:
 
 
-	def __init__(self,board,p=.5,parent=None,c=10):
+	def __init__(self,board,p=.5,parent=None,c=1,move=None):
 
 		self.board 			= board 
 		self.parent 		= parent 
 		self.parents 		= [parent]
 		self.children		= {}
 		self.num_visited	= 0
+		self.move 			= None 
 
 		self.Q_val 			= 0 
 		self.p				= p 
@@ -1263,16 +1261,21 @@ class Node:
 
 		self.score 			= 0
 
+		self.fen 			= "".join(board.fen().split(" ")[:2])
 	
 	def get_score(self):
 		return self.Q_val + ((self.c * self.p) * (sqrt(sum([m.num_visited for m in self.parent.children.values()])) / (1 + self.num_visited)))
 	
-	def bubble_up(self):
+	def bubble_up(self,v):
 
-		leaves 				= self.parents 
+		#Update this node
+		self.Q_val 			= (self.num_visited * self.Q_val + v) / (self.num_visited + 1) 
+		self.num_visited 	+= 1
 
-		while leaves:
-			pass
+		for parent in self.parents:	
+			#Recursively update all parents 
+			if not parent is None:
+				parent.bubble_up(-1*v)
 
 
 class Tree:
@@ -1289,6 +1292,8 @@ class Tree:
 		else:
 			self.root 			= Node(board,0,None)
 			self.root.parent	= None 
+
+		self.parents 		= {self.root:{None}}
 
 	def rollout_exp(self,board:chess.Board):
 		started 	= board.turn
@@ -1312,7 +1317,7 @@ class Tree:
 
 		return -v if started == board.turn else v	  
 	
-	def update_tree_nonrecursive_exp(self,x=.8,dirichlet_a=.3,rollout_p=.25,iters=300,abbrev=True): 
+	def update_tree_nonrecursive_exp(self,x=.9,dirichlet_a=.3,rollout_p=.25,iters=300,abbrev=True): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		create_repr				= Chess.fen_to_tensor
@@ -1329,12 +1334,11 @@ class Tree:
 			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 		
 		self.root.parent		= None 
-		flag					= True
-		debugging 				= False 
+		flag					= False
+		debugging 				= False
+		overflag				= False 
 		for iter_i in range(iters):
-
-			if iter_i * 10 == 0 and iter_i > 0:
-				torch.cuda.empty_cache()
+			overflag = False
 			node = self.root
 			score_mult = 1 if node.board.turn == chess.WHITE else -1
 			#print(f"turn was {node.board.turn} -> mult was {score_mult}")
@@ -1347,19 +1351,19 @@ class Tree:
 
 			game_over 	= node.board.is_checkmate() or node.board.is_stalemate() or node.board.is_seventyfive_moves()
 			if game_over:
-				if "1" in node.board.result():
-					if node.board.result()[0] == "1":
+				overflag 	= True 
+				res 		= node.board.result()
+				if "1" in res and not "1/2" in res:
+					if res[0] == "1":
 						v 	=   1 * score_mult
 					else:
 						v 	=  -1 * score_mult
 				else:
 					v 	=  0 
-				if flag and debugging:
+				if flag:
 					print(f"result was {node.board.result()}")
-					print(f"found result of {v} in position\n{node.board}\nafter {'white' if node.board.turn else 'black'} moved")
-					continuing = input(f"policy is now/n{[ (Chess.chess_moves[k],v.get_score()) for k,v in self.root.children.items()]}")
-					if continuing == "stop":
-						flag = False
+					print(f"found result of {v} in position\n{node.board}\nafter {'white' if not node.board.turn else 'black'} moved")
+					
 			
 			#expand 
 			else:
@@ -1375,7 +1379,7 @@ class Tree:
 				# 	node.repr 				= None 
 
 				# else:
-				node.repr 				= create_repr(node.board,self.device)
+				node.repr 				= create_repr(node.board,self.device,no_castle=False)
 				
 				#	
 				with torch.no_grad():
@@ -1387,34 +1391,49 @@ class Tree:
 
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)
 				#input(f"noise yields: {noise}")
-				legal_probs					= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)[0]
+				legal_probs					= softmax_fn([x*p for p in legal_probs] + (1-x)*noise)
 				#input(f"model yields probs: {legal_probs}")
 				#self.lookup_table[position_fen]	=	 (v,legal_moves,legal_probs)
 
-				if debugging:
+				if debugging and abs(v) > .5:
 					input(f"\n{node.board}\nposition evaluates to {v}")
 				node.children 		= {move_i : Node(node.board.copy(stack=False) ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
 
 
 				for move in node.children:
 					node.children[move].board.push(index_to_move[move])
+					node.children[move].move 	= index_to_move[move]
+
+					#Add to parents dict 
+					if not node.children[move].fen in self.parents:
+						self.parents[node.children[move].fen] = {node}
+					else:
+						node.children[move].parents += list(self.parents[node.children[move].fen])
+						self.parents[node.children[move].fen].add(node)
+
+						
+
 				
 				#Remove rollout for now
 				if False and random.random() < rollout_p:
 					v = self.rollout_exp(random.choice(list(node.children.values())).board.copy()) * score_mult
-							
-			while node.parent:
-				if isinstance(v,torch.Tensor):
-					v = v.item()
-				node.Q_val 			= (node.num_visited * node.Q_val + v) / (node.num_visited + 1) 
-				node.num_visited 	+= 1 
+			
+			if overflag and False:
+				print(f"updating {node.move} with val {v} was eq {node.get_score():.3f}",end='')
 
-				#Try updating score only on leaf nodes
-				# node.score 			= node.get_score()
-				# total_score_calls 	+= 1 
+			if isinstance(v,torch.Tensor):
+				v = v.item()
 
-				v *= -1 
-				node = node.parent
+			node.bubble_up(v)				
+			# while node.parent:
+			# 	if isinstance(v,torch.Tensor):
+			# 		v = v.item()
+			
+			if overflag and False:
+				print(f" now is {node.get_score():.3f} - Q = {node.Q_val:.3f} U = {node.get_score()-node.Q_val:.3f}")
+
+		#input(f"\nnew policy:\n{[ (Chess.chess_moves[k],(int(1000*v.Q_val)/1000),int(100*(v.get_score()-v.Q_val))/100) for k,v in self.root.children.items()]}")
+				
 		
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
@@ -1436,6 +1455,7 @@ class Tree:
 		# 	for _ in range(search_iters):
 		# 		self.update_tree(self.root)
 		# return {move:self.root.children[move].num_visited for move in self.root.children}
+
 
 class Treert:
 
@@ -1485,7 +1505,6 @@ class Treert:
 		infer 					= self.model.forward
 		create_repr				= Chess.fen_to_tensor_np
 		noise_gen				= numpy.random.default_rng().dirichlet
-		softmax_fn				= scipy.special.softmax
 		move_to_index 			= Chess.move_to_index
 		index_to_move 			= Chess.index_to_move
 
@@ -1566,7 +1585,7 @@ class Treert:
 				#input(f"model yields probs: {legal_probs}")
 				#self.lookup_table[position_fen]	=	 (v,legal_moves,legal_probs)
 
-				if debugging:
+				if debugging and abs(v) > .01:
 					input(f"\n{node.board}\nposition evaluates to {v}")
 				node.children 		= {move_i : Node(node.board.copy(stack=False) ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
 

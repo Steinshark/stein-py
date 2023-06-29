@@ -209,8 +209,8 @@ class ImgNet(FullNet):
         
         self.value_head = torch.nn.Sequential(
             
-            torch.nn.Conv2d(128,256,7,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,7,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
@@ -242,6 +242,7 @@ class ImgNet(FullNet):
         value_prediction    = self.value_head(conv_output)
 
         return probability_distr,value_prediction
+
 
 class ImgNet2(FullNet):
 
@@ -282,24 +283,24 @@ class ImgNet2(FullNet):
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
 
-            torch.nn.Conv2d(128,256,3,1,1,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,1,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),      
 
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
 
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
 
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
@@ -324,26 +325,26 @@ class ImgNet2(FullNet):
         
         self.value_head = torch.nn.Sequential(
             
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
 
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
 
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
 
-            torch.nn.Conv2d(256,256,3,1,2,bias=False),
-            torch.nn.BatchNorm2d(256),
+            torch.nn.Conv2d(128,128,3,1,2,bias=False),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
             #torch.nn.MaxPool2d(2),
             torch.nn.AvgPool2d(2),
@@ -351,11 +352,11 @@ class ImgNet2(FullNet):
         
             torch.nn.Flatten(),
         
-            torch.nn.Linear(1024,256),
+            torch.nn.Linear(1024,128),
             torch.nn.LeakyReLU(negative_slope=.02),
             torch.nn.Dropout(.25),
 
-            torch.nn.Linear(256,64),
+            torch.nn.Linear(128,64),
             torch.nn.LeakyReLU(negative_slope=.02),
             torch.nn.Dropout(.1),
 
@@ -383,15 +384,16 @@ class ChessNet(FullNet):
                  optimizer=torch.optim.Adam,
                  optimizer_kwargs={"lr":1e-5,"weight_decay":1e-6},
                  device=torch.device('cuda'),
-                 n_ch=19
+                 n_ch=17,
+                 n_layers=18
                  ):
         
-        super(ChessNet,self).__init__(loss_fn=loss_fn,optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,device=device)\
-        
+        super(ChessNet,self).__init__(loss_fn=loss_fn,optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,device=device)
+
         self.conv_layers_res     = [] 
 
-        layers          =    {0:256,1:256,2:256,3:256,4:256,5:256,6:256,7:256,8:256,9:256,10:256,11:256,12:256,13:256,14:256,15:256,16:256,17:256,18:256}
-
+        layers          =    {i:128 for i in range(n_layers)}
+        self.n_layers   = n_layers
         for i in range(len(layers)):
             if i == 0:
                 prev_ch  = n_ch 
@@ -414,33 +416,25 @@ class ChessNet(FullNet):
 
 
         self.prob_net   = torch.nn.Sequential(  
+            torch.nn.Conv2d(cur_ch,4,1,1,1,bias=False),
+            torch.nn.BatchNorm2d(4),
             torch.nn.Flatten(),
 
-            torch.nn.Linear(16384,1024),
-            torch.nn.Dropout(.4),
-            torch.nn.ReLU(),
-
-            torch.nn.Linear(1024,1968),
-            torch.nn.Dropout(.1),
+            torch.nn.Linear(400,1968),
             torch.nn.ReLU(),
             torch.nn.Softmax(dim=1)
         ).to(device)
 
         self.value_net  = torch.nn.Sequential( 
-            torch.nn.Conv2d(256,256,3,1,1,bias=False), 
-            torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.MaxPool2d(2),
-
-            torch.nn.Conv2d(256,256,3,1,1,bias=False), 
-            torch.nn.LeakyReLU(negative_slope=.02),
-            torch.nn.MaxPool2d(2),
+            torch.nn.Conv2d(cur_ch,1,1,1,1,bias=False), 
+            torch.nn.BatchNorm2d(1),
+            torch.nn.ReLU(),
             torch.nn.Flatten(),
 
-            torch.nn.Linear(1024,128), 
-            torch.nn.Dropout(.25),
-            torch.nn.LeakyReLU(negative_slope=.02), 
+            torch.nn.Linear(100,64), 
+            torch.nn.ReLU(),
             
-            torch.nn.Linear(128,1),
+            torch.nn.Linear(64,1),
             torch.nn.Tanh()
         ).to(device)
         
@@ -455,7 +449,8 @@ class ChessNet(FullNet):
 
     def forward(self,x):
 
-        prev_out        = self.conv_layers_res[0](x)
+        conv_layer_1:torch.nn.Sequential = self.conv_layers_res[0]  
+        prev_out        = conv_layer_1(x)
         reluer          = torch.nn.ReLU()
 
         for layer in self.conv_layers_res[1:]:
@@ -463,64 +458,94 @@ class ChessNet(FullNet):
             prev_out        = reluer(cur_out+prev_out)
             
         return self.prob_net(prev_out), self.value_net(prev_out)
-        
-class ChessNetCompat(torch.nn.Module):
+
+
+class ChessNetCompat(FullNet):
     def __init__(self,
                  loss_fn=torch.nn.MSELoss,
                  optimizer=torch.optim.Adam,
                  optimizer_kwargs={"lr":1e-5,"weight_decay":1e-6},
                  device=torch.device('cuda'),
-                 n_ch=19
+                 n_ch=13,
+                 n_layers=0
                  ):
         
-        super(ChessNetCompat,self).__init__()
+        super(ChessNetCompat,self).__init__(loss_fn=loss_fn,optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,device=device)
         
+        self.l1                     = torch.nn.Sequential(torch.nn.Conv2d(n_ch,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l2                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l3                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l4                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l5                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l6                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l7                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l8                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l9                     = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l10                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l11                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l12                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l13                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        self.l14                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        #self.l15                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        #self.l16                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        #self.l17                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+        #self.l18                    = torch.nn.Sequential(torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128),torch.nn.ReLU(),torch.nn.Conv2d(128,128,3,1,1,bias=False),torch.nn.BatchNorm2d(128)).to(device)
+       
 
-        self.conv_layers = torch.nn.Conv2d(n_ch,256,3,1,1,bias=False)
+        self.prob_net   = torch.nn.Sequential(  
+            torch.nn.Conv2d(128,10,1,1,1,bias=False),
+            torch.nn.BatchNorm2d(10),
+            torch.nn.Flatten(),
 
-    
-        
+            torch.nn.Linear(1000,1968),
 
+            torch.nn.ReLU(),
+            torch.nn.Softmax(dim=1)
+        ).to(device)
 
-        # self.prob_net   = torch.nn.Sequential(  
-        #     torch.nn.Flatten(),
+        self.value_net  = torch.nn.Sequential( 
+            torch.nn.Conv2d(128,1,1,1,1,bias=False), 
+            torch.nn.BatchNorm2d(1),
+            torch.nn.ReLU(),
+            torch.nn.Flatten(),
 
-        #     torch.nn.Linear(16384,1024),
-        #     torch.nn.Dropout(.4),
-        #     torch.nn.ReLU(),
-
-        #     torch.nn.Linear(1024,1968),
-        #     torch.nn.Dropout(.1),
-        #     torch.nn.ReLU(),
-        #     torch.nn.Softmax(dim=1)
-        # ).to(device)
-
-        # self.value_net  = torch.nn.Sequential( 
-        #     torch.nn.Conv2d(256,256,3,1,1,bias=False), 
-        #     torch.nn.LeakyReLU(negative_slope=.02),
-        #     torch.nn.MaxPool2d(2),
-
-        #     torch.nn.Conv2d(256,256,3,1,1,bias=False), 
-        #     torch.nn.LeakyReLU(negative_slope=.02),
-        #     torch.nn.MaxPool2d(2),
-        #     torch.nn.Flatten(),
-
-        #     torch.nn.Linear(1024,128), 
-        #     torch.nn.Dropout(.25),
-        #     torch.nn.LeakyReLU(negative_slope=.02), 
+            torch.nn.Linear(100,64), 
+            torch.nn.ReLU(),
             
-        #     torch.nn.Linear(128,1),
-        #     torch.nn.Tanh()
-        # ).to(device)
+            torch.nn.Linear(64,1),
+            torch.nn.Tanh()
+        ).to(device)
         
-        # self.model  = torch.nn.ModuleList([self.conv_layers,self.prob_net,self.value_net]).to(device)
+        self.model  = torch.nn.ModuleList([self.l1,self.l2,self.l3,self.l4,self.l5,self.l6,self.l7,self.l8,self.value_net,self.prob_net]).to(device)#,self.l13,self.l14,self.l15,self.l16,self.l17,self.l18]).to(device)
+        self.set_training_vars()
+        self.loaded     = False
 
     def forward(self,x):
-        conv_forward_pass   = self.conv_layers(x) 
-        #outp                = self.prob_net(conv_forward_pass)
-        return conv_forward_pass#, self.value_net(conv_forward_pass)
+        reLU        = torch.nn.functional.relu
 
-        
+        x1          = reLU(self.l1(x))
+        x2          = reLU(self.l2(x1)+x1)
+        x3          = reLU(self.l3(x2)+x2)
+        x4          = reLU(self.l4(x3)+x3)
+        x5          = reLU(self.l5(x4)+x4)
+        x6          = reLU(self.l6(x5)+x5)
+        x7          = reLU(self.l7(x6)+x6)
+        x8          = reLU(self.l8(x7)+x7)
+        x9          = reLU(self.l9(x8)+x8)
+        x10         = reLU(self.l10(x9)+x9)
+        x11         = reLU(self.l11(x10)+x10)
+        x12         = reLU(self.l12(x11)+x11)
+        x13         = reLU(self.l13(x12)+x12)
+        x14         = reLU(self.l2(x13)+x13)
+        # x15         = reLU(self.l2(x14)+x14)
+        # x16         = reLU(self.l2(x15)+x15)
+        # x17         = reLU(self.l2(x16)+x16)
+        # x18         = reLU(self.l2(x17)+x17)
+        # x19         = reLU(self.l2(x18)+x18)
+
+        return self.prob_net(x14), self.value_net(x14)
+
+     
 
 
 class ChessDataset(Dataset):
