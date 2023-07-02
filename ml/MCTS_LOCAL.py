@@ -16,7 +16,7 @@ import multiprocessing
 from torch.utils.data import DataLoader
 from sklearn.utils import extmath 
 
-DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
+DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
 try:
 	chess_moves 		= json.loads(open(os.path.join("C:/gitrepos/steinpy/ml/res/chessmoves.txt"),"r").read())
 except FileNotFoundError:
@@ -436,7 +436,7 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_training,[(800,250,i,gen) for i in range(n_games)])
+				results 	= pool.starmap(run_training,[(50,25,i,gen) for i in range(n_games)])
 			
 	elif sys.argv[1] == "test":
 		if len(sys.argv) >= 3:

@@ -288,7 +288,6 @@ if __name__ == "__main__":
 					play_table[game_id] = 1 
 
 				fen					= fen.split('$')[1]
-				print(f"received id: {game_id}\tfen: {fen}")
 				fen_stripped 		= " ".join(fen.split(' ')[:2])
 
 				#if fen is in lookup, immediate send it back out 
