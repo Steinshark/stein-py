@@ -11,6 +11,7 @@ warnings.simplefilter('ignore')
 
 socket.setdefaulttimeout(.00001)
 #						 .002	
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 class Color:
 	HEADER = '\033[95m'
 	BLUE = '\033[94m'
@@ -20,7 +21,6 @@ class Color:
 	TAN = '\033[93m'
 	BOLD = '\033[1m'
 	UNDERLINE = '\033[4m'
-	DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 
 def fen_to_tensor(fen,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):

@@ -16,8 +16,6 @@ import multiprocessing
 from torch.utils.data import DataLoader
 
 
-DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
-
 from sklearn.utils import extmath 
 try:
 	chess_moves 		= json.loads(open(os.path.join("C:/gitrepos/steinpy/ml/res/chessmoves.txt"),"r").read())
