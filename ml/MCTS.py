@@ -14,9 +14,9 @@ import torch
 import sys 
 import multiprocessing 
 from torch.utils.data import DataLoader
-
-
 from sklearn.utils import extmath 
+
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 try:
 	chess_moves 		= json.loads(open(os.path.join("C:/gitrepos/steinpy/ml/res/chessmoves.txt"),"r").read())
 except FileNotFoundError:
@@ -156,13 +156,11 @@ class Tree:
 
 	def SEND_EVAL_REQUEST(self,fen='',port=6969,hostname=socket.gethostname()):
 		
-		self.sock.sendto(fen.encode(),(hostname,port))
-		#print(f"\tuid {self.uid} sent req")
+		eval_msg 			= f"{self.uid}$"+fen
+		self.sock.sendto(eval_msg.encode(),(hostname,port))
 
 		prob,addr 			= self.sock.recvfrom(8192)
-		#print(f"\tuid {self.uid} recieved back prob")
 		v,addr 				= self.sock.recvfrom(512)
-		#print(f"\tuid {self.uid} recieved back v")
 		prob 				= pickle.loads(prob)
 		v 					= pickle.loads(v)	
 		return prob,v
@@ -239,6 +237,7 @@ def fen_to_tensor(fen):
 
 	return torch.tensor(board_tensor,dtype=torch.int8,requires_grad=False)
 
+
 def fen_to_tensor_no_castle(fen):
 
 	#Encoding will be an 8x8 x n tensor 
@@ -271,7 +270,6 @@ def fen_to_tensor_no_castle(fen):
 	board_tensor[slice,:,:]   = numpy.ones(shape=(8,8)) * 1 if turn == "w" else -1
 
 	return torch.tensor(board_tensor,dtype=torch.int8,requires_grad=False)
-
 
 
 def run_training(search_depth,move_limit,game_id,gen=999):
@@ -325,15 +323,15 @@ def run_training(search_depth,move_limit,game_id,gen=999):
 	print(f"\tgame no. {game_id}\t== {game_board.result() if not '1/2' in game_board.result() else '---'}\tafter\t{game_board.ply()} moves in {(time.time()-t0):.2f}s\t {(time.time()-t0)/game_board.ply():.2f}s/move")
 	state_pi		= [torch.tensor(pi,dtype=torch.float16) for pi in state_pi]
 	#Save tensors
-	torch.save(torch.stack(state_repr).float(),f"C:/data/chess/experiences/gen1/game_{game_id}_states")
-	torch.save(torch.stack(state_pi).float(),f"C:/data/chess/experiences/gen1/game_{game_id}_localpi")
-	torch.save(state_outcome.float(),f"C:/data/chess/experiences/gen1/game_{game_id}_results")
+	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"/experiences/gen1/game_{game_id}_states")
+	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"/experiences/gen1/game_{game_id}_localpi")
+	torch.save(state_outcome.float(),DATASET_ROOT+f"/experiences/gen1/game_{game_id}_results")
 
 	return game_id,time.time()-t0
 
 
 def save_model(model:networks.FullNet,gen=1):
-    torch.save(model.state_dict(),f"C:/data/chess/models/gen{gen}")
+	torch.save(model.state_dict(),DATASET_ROOT+f"/models/gen{gen}")
 
 
 def load_model(model:networks.FullNet,gen=1,verbose=False):
@@ -352,9 +350,9 @@ def load_model(model:networks.FullNet,gen=1,verbose=False):
 
 
 def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
-    model = model.float()
-    root                        = f"C:/data/chess/experiences/gen{gen}"
-    experiences                 = []
+	model = model.float()
+	root                        = DATASET_ROOT+f"/experiences/gen{gen}"
+	experiences                 = []
 
 	if not os.listdir(root):
 		print(f"No data to train on")

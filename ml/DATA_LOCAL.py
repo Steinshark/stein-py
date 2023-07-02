@@ -3,16 +3,17 @@ import random
 import time 
 import numpy 
 import torch
-from networks import ChessNet, FullNet, ChessNetCompat
+import networks 
+from networks import ChessNet, FullNet, ChessNetCompat, ChessDataset
 import pickle 
 import sys 
 import warnings
-import networks 
+import os 
+from torch.utils.data import DataLoader
 
 warnings.simplefilter('ignore')
 
 socket.setdefaulttimeout(.00001)
-#						 .002	
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 class Color:
 	HEADER = '\033[95m'
@@ -64,6 +65,7 @@ def fen_to_tensor(fen,device=torch.device('cuda' if torch.cuda.is_available() el
 
 	return board_tensor
 	#return torch.tensor(board_tensor,dtype=torch.float,device=device,requires_grad=False)
+
 
 def fen_to_tensor_no_castle(fen,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
@@ -119,13 +121,74 @@ def load_model(model:FullNet,gen=1,verbose=False,tablesize=0):
 				return
 	
 
+def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
+	model = model.float()
+	root                        = DATASET_ROOT+f"/experiences/gen{gen}"
+	experiences                 = []
+
+	if not os.listdir(root):
+		print(f"No data to train on")
+		return
+	max_i                       = max([int(f.split('_')[1]) for f in os.listdir(root)]) 
+
+	for game_i in range(max_i+1):
+		try:
+			states                      = torch.load(f"{root}/game_{game_i}_states").float().to(DEV)
+			pi                          = torch.load(f"{root}/game_{game_i}_localpi").float().to(DEV)
+			results                     = torch.load(f"{root}/game_{game_i}_results").float().to(DEV)
+		except FileNotFoundError:
+			pass 
+		for i in range(len(states)):
+			experiences.append((states[i],pi[i],results[i]))
+
+
+	for epoch_i in range(epochs):
+		train_set                   = random.sample(experiences,min(n_samples,len(experiences)))
+
+		dataset                     = ChessDataset(train_set)
+		dataloader                  = DataLoader(dataset,batch_size=bs,shuffle=True)
+		
+		total_loss                  = 0 
+		
+		for batch_i,batch in enumerate(dataloader):
+			
+			#Zero Grad 
+			for p in model.parameters():
+				p.grad                      = None
+
+			#Get Data
+			states                      = batch[0].to(torch.device('cuda'))
+			pi                          = batch[1].to(torch.device('cuda'))
+			outcome                     = batch[2].to(torch.device('cuda'))
+			batch_len                   = len(states)
+
+			#Get model predicitons
+			pi_pred,v_pred              = model.forward(states)
+			#Calc model loss 
+			loss                        = torch.nn.functional.mse_loss(v_pred.view(-1),outcome,reduction='mean') + torch.nn.functional.cross_entropy(pi_pred,pi,)
+			total_loss                  += loss.mean().item()
+			loss.backward() 
+
+			#Backpropogate
+			model.optimizer.step()
+		
+		print(f"\t\tEpoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}")
+
+
+
+def check_train(n=128):
+	
+	#Check for n experiences 
+	exp_list	= os.listdir(DATASET_ROOT+"/experiences/gen1")
+	if int(len(exp_list)/3) > 128:
+		train()
+
 #Server Code 
 
 #TODO:
 #	Incorporate a dynamic lookup table to reduce 
 # 	inference forward passes.   -challenge will be to drop indices on forw pass and add them back in properly 
 if __name__ == "__main__":
-
 	trailer             			= 0
 	trailer2            			= 0 
 	og_lim              			= 10 
@@ -141,14 +204,16 @@ if __name__ == "__main__":
 	model_gen 						= 1 
 	i 								= 1
 	fills 							= [] 
-	queue   						= {}
+	queue   = {}
 	lookup_table 					= {}
 	use_lookups 					= True
 	lookup_ply_len					= 25
 	lookups 						= 0
 	total_lookups	 				= 0 
 	exp_trt 						= True 
-
+	train_thresh					= 16
+	play_table 						= {}
+	trained_on						= [0]
 
 	if len(sys.argv) >= 2:
 		queue_fill_cap 					= int(sys.argv[1])
@@ -170,26 +235,38 @@ if __name__ == "__main__":
 	while i:
 		listen_start        = time.time()
 
-		#If no activity for 1 second, reload model, reset limit, reset table
-		if ((len(fills)+1) % int(1/timeout_thresh) == 0) and sum(fills[-1000:]) == 0:
-			model = ChessNet(optimizer=torch.optim.SGD,optimizer_kwargs={"lr":2e-5,"weight_decay":2.5e-6,"momentum":.75,'nesterov':True},n_ch=17,device=torch.device('cuda'),n_layers=20)
-			load_model(model,gen=model_gen,verbose=True,tablesize=len(lookup_table))
-			model.eval()
 
+
+		#Train model every 100 games 
+		if len(play_table) > train_thresh and not len(play_table) in trained_on:
+
+			#Reset the model 
+			del model 
+			model 				= ChessNet(optimizer=torch.optim.SGD,optimizer_kwargs={"lr":2e-5,"weight_decay":2.5e-6,"momentum":.75,'nesterov':True},n_ch=17,device=torch.device('cuda'),n_layers=20)
+			
+			#Train model on random sample of games 
+			load_model(model,gen=model_gen,verbose=True)
+			train(model,8192,gen=model_gen,bs=8,epochs=1)
+			save_model(gen=model_gen)
+
+			#Reset the lookup table 
+			del lookup_table 
+			lookup_table 		= {}
+
+			#Set mode for training
+			model.eval()
 			if exp_trt:
-				#model 			= torch.jit.script(model, torch.randn((50,13,8,8)).to("cuda"))
-				model 			= torch.jit.trace(model,[torch.randn((16,17,8,8)).to("cuda")])
+				model 			= torch.jit.trace(model,[torch.randn((queue_fill_cap,17,8,8)).to("cuda")])
 				model 			= torch.jit.freeze(model)
 				model.loaded 	= True 
 				print(f"\t\tConverted to JIT")
-			lookup_table 	= {}
 			if len(sys.argv) >= 2:
 				queue_fill_cap 					= int(sys.argv[1])
 			
 			
 
 
-		#If same num clients for last 100, reduct to that num clients 
+		#If same num clients for last 1000, reduct to that num clients 
 		if len(fills) > 1000  and fills[-1] > 0 and sum(fills[-1000:])/1000 > 1:
 			queue_fill_cap = max(fills[-1000:])
 		
@@ -204,6 +281,13 @@ if __name__ == "__main__":
 			try:
 				fen,addr            = sock.recvfrom(1024)
 				fen                 = fen.decode() 
+				game_id 			= fen.split('$')[0]
+				if game_id in play_table:
+					play_table[game_id]	+= 1 
+				else:
+					play_table[game_id] = 1 
+
+				fen					= fen.split('$')[1]
 				fen_stripped 		= " ".join(fen.split(' ')[:2])
 
 				#if fen is in lookup, immediate send it back out 
