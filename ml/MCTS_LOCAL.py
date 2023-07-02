@@ -330,6 +330,9 @@ def run_training(search_depth,move_limit,game_id,gen,local_iter):
 	
 	state_pi		= [torch.tensor(pi,dtype=torch.float16) for pi in state_pi]
 	#Save tensors
+	
+	while os.path.exists(DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_states"):
+		game_id += 1
 	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_states")
 	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_localpi")
 	torch.save(state_outcome.float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_results")
