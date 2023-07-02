@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 
 warnings.simplefilter('ignore')
 
-socket.setdefaulttimeout(.00002)
+socket.setdefaulttimeout(.00004)
 DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
 
 class Color:
@@ -301,8 +301,14 @@ if __name__ == "__main__":
 				#if fen is in lookup, immediate send it back out 
 				if use_lookups and fen_stripped in lookup_table:
 					prob,v     	= lookup_table[fen_stripped]
-					sock.sendto(prob,addr)
-					sock.sendto(v,addr)
+					sent 		= False 
+					while not sent:
+						try:
+							sock.sendto(prob,addr)
+							sock.sendto(v,addr)
+							sent 	= True
+						except TimeoutError:
+							pass
 					lookups += 1
 					continue
 				else:
@@ -345,8 +351,14 @@ if __name__ == "__main__":
 			t_send 			= time.time()
 			for addr,returnable in zip(queue,returnables):
 				prob,v     = returnable
-				sock.sendto(prob,addr)
-				sock.sendto(v,addr)
+				sent 		= False 
+				while not sent:
+					try:
+						sock.sendto(prob,addr)
+						sock.sendto(v,addr)
+						sent 	= True
+					except TimeoutError:
+						pass
 
 				#Add to lookup table 
 				if use_lookups:
