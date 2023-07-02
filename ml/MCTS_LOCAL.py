@@ -280,7 +280,7 @@ def fen_to_tensor_no_castle(fen):
 	return torch.tensor(board_tensor,dtype=torch.int8,requires_grad=False)
 
 
-def run_training(search_depth,move_limit,game_id,gen):
+def run_training(search_depth,move_limit,game_id,gen,local_iter):
 	
 	t0 						= time.time() 
 	
@@ -328,24 +328,24 @@ def run_training(search_depth,move_limit,game_id,gen):
 	else:
 		state_outcome = torch.zeros(len(state_repr),dtype=torch.int8)
 	
-	print(f"\tgame no. {game_id}\t== {game_board.result() if not '1/2' in game_board.result() else '---'}\tafter\t{game_board.ply()} moves in {(time.time()-t0):.2f}s\t {(time.time()-t0)/game_board.ply():.2f}s/move")
 	state_pi		= [torch.tensor(pi,dtype=torch.float16) for pi in state_pi]
 	#Save tensors
-	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"/experiences/gen1/game_{gen}-{game_id}_states")
-	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"/experiences/gen1/game_{gen}-{game_id}_localpi")
-	torch.save(state_outcome.float(),DATASET_ROOT+f"/experiences/gen1/game_{gen}-{game_id}_results")
+	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_states")
+	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_localpi")
+	torch.save(state_outcome.float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{local_iter}-{game_id}_results")
+	print(f"\tgame no. {game_id}\t== {game_board.result() if not '1/2' in game_board.result() else '---'}\tafter\t{game_board.ply()} moves in {(time.time()-t0):.2f}s\t {(time.time()-t0)/game_board.ply():.2f}s/move")
 
 	return game_id,time.time()-t0
 
 
 def save_model(model:networks.FullNet,gen=1):
-	torch.save(model.state_dict(),DATASET_ROOT+f"/models/gen{gen}")
+	torch.save(model.state_dict(),DATASET_ROOT+f"\models\gen{gen}")
 
 
 def load_model(model:networks.FullNet,gen=1,verbose=False):
 	while True:
 		try:
-			model.load_state_dict(torch.load(DATASET_ROOT+f"/models/gen{gen}"))
+			model.load_state_dict(torch.load(DATASET_ROOT+f"\models\gen{gen}"))
 			if verbose:
 				print(f"\tloaded model gen {gen}")
 			return 
@@ -359,23 +359,24 @@ def load_model(model:networks.FullNet,gen=1,verbose=False):
 
 def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
 	model = model.float()
-	root                        = DATASET_ROOT+f"/experiences/gen{gen}"
+	root                        = DATASET_ROOT+f"\experiences\gen{gen}"
 	experiences                 = []
 
 	if not os.listdir(root):
 		print(f"No data to train on")
 		return
-	max_i                       = max([int(f.split('_')[1]) for f in os.listdir(root)]) 
 
-	for game_i in range(max_i+1):
-		try:
-			states                      = torch.load(f"{root}/game_{game_i}_states").float().to(DEV)
-			pi                          = torch.load(f"{root}/game_{game_i}_localpi").float().to(DEV)
-			results                     = torch.load(f"{root}/game_{game_i}_results").float().to(DEV)
-		except FileNotFoundError:
-			pass 
-		for i in range(len(states)):
-			experiences.append((states[i],pi[i],results[i]))
+
+	for game_i in range(500):
+		for local_iter in range(200):
+			try:
+				states                      = torch.load(f"{root}/game_{local_iter}-{game_i}_states").float().to(DEV)
+				pi                          = torch.load(f"{root}/game_{local_iter}-{game_i}_localpi").float().to(DEV)
+				results                     = torch.load(f"{root}/game_{local_iter}-{game_i}_results").float().to(DEV)
+			except FileNotFoundError:
+				pass 
+			for i in range(len(states)):
+				experiences.append((states[i],pi[i],results[i]))
 
 
 	for epoch_i in range(epochs):
@@ -425,18 +426,18 @@ if __name__ == "__main__":
 			n_games 	= int(sys.argv[3])
 		
 		if len(sys.argv) >= 5:
-			model_n 	= int(sys.argv[4])
+			gen 	= int(sys.argv[4])
 		else:
-			model_n 	= 0
+			gen 	= 0
 		train_iters 	= 100 
 
-		for gen in range(train_iters):
+		for train_iter in range(train_iters):
 			print(f"\n\nTraining iter {gen}")
-			time.sleep(4)
+			time.sleep(.1)
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_training,[(50,25,i,gen) for i in range(n_games)])
+				results 	= pool.starmap(run_training,[(50,25,i,gen,train_iter) for i in range(n_games)])
 			
 	elif sys.argv[1] == "test":
 		if len(sys.argv) >= 3:
@@ -446,13 +447,13 @@ if __name__ == "__main__":
 			n_games 	= int(sys.argv[3])
 		
 		if len(sys.argv) >= 5:
-			model_n 	= int(sys.argv[4])
+			gen 	= int(sys.argv[4])
 		else:
-			model_n 	= 0
+			gen 	= 0
 		train_iters 	= 20 
 
 		for gen in range(train_iters):
 			print(f"\n\nTraining iter {gen}")
 			#play out games  
-			run_training(800,200,0,model_n)
+			run_training(800,200,0,gen)
 			

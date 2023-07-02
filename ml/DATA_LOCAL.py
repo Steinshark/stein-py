@@ -13,8 +13,9 @@ from torch.utils.data import DataLoader
 
 warnings.simplefilter('ignore')
 
-socket.setdefaulttimeout(.00001)
-DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
+socket.setdefaulttimeout(.00002)
+DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
+
 class Color:
 	HEADER = '\033[95m'
 	BLUE = '\033[94m'
@@ -25,6 +26,9 @@ class Color:
 	BOLD = '\033[1m'
 	UNDERLINE = '\033[4m'
 
+#check for connection
+if os.listdir(DATASET_ROOT):
+	print(f"{Color.GREEN}SERVER CHECK - GOOD {Color.END}") 
 
 def fen_to_tensor(fen,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
@@ -103,13 +107,13 @@ def fen_to_tensor_no_castle(fen,device=torch.device('cuda' if torch.cuda.is_avai
 
 
 def save_model(model:FullNet,gen=1):
-	torch.save(model.state_dict(),DATASET_ROOT+f"/models/gen{gen}")
+	torch.save(model.state_dict(),DATASET_ROOT+f"\models\gen{gen}")
 
 
 def load_model(model:FullNet,gen=1,verbose=False,tablesize=0):
 	while True:
 		try:
-			model.load_state_dict(torch.load(DATASET_ROOT+f"/models/gen{gen}"))
+			model.load_state_dict(torch.load(DATASET_ROOT+f"\models\gen{gen}"))
 			if verbose:
 				print(f"\t\t{Color.BLUE}loaded model gen {gen} - lookup table size {tablesize}{Color.END}")
 			return 
@@ -123,24 +127,27 @@ def load_model(model:FullNet,gen=1,verbose=False,tablesize=0):
 
 def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
 	model = model.float()
-	root                        = DATASET_ROOT+f"/experiences/gen{gen}"
+	root                        = DATASET_ROOT+f"\experiences\gen{gen}"
 	experiences                 = []
 
 	if not os.listdir(root):
 		print(f"No data to train on")
 		return
-	max_i                       = max([int(f.split('_')[1]) for f in os.listdir(root)]) 
 
-	for game_i in range(max_i+1):
-		try:
-			states                      = torch.load(f"{root}/game_{game_i}_states").float().to(DEV)
-			pi                          = torch.load(f"{root}/game_{game_i}_localpi").float().to(DEV)
-			results                     = torch.load(f"{root}/game_{game_i}_results").float().to(DEV)
-		except FileNotFoundError:
-			pass 
-		for i in range(len(states)):
-			experiences.append((states[i],pi[i],results[i]))
 
+	print(f"{Color.TAN}\n\n\tbegin Training:{Color.END}")
+	for game_i in range(500):
+		for local_iter in range(200):
+			try:
+				states                      = torch.load(f"{root}/game_{local_iter}-{game_i}_states").float().to(DEV)
+				pi                          = torch.load(f"{root}/game_{local_iter}-{game_i}_localpi").float().to(DEV)
+				results                     = torch.load(f"{root}/game_{local_iter}-{game_i}_results").float().to(DEV)
+				for i in range(len(states)):
+					experiences.append((states[i],pi[i],results[i]))
+			except FileNotFoundError:
+				pass 
+			
+	
 
 	for epoch_i in range(epochs):
 		train_set                   = random.sample(experiences,min(n_samples,len(experiences)))
@@ -172,14 +179,14 @@ def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('c
 			#Backpropogate
 			model.optimizer.step()
 		
-		print(f"\t\tEpoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}")
+		print(f"\t\t{Color.BLUE}Epoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}{Color.END}")
 
 
 
 def check_train(n=128):
 	
 	#Check for n experiences 
-	exp_list	= os.listdir(DATASET_ROOT+"/experiences/gen1")
+	exp_list	= os.listdir(DATASET_ROOT+"\experiences\gen1")
 	if int(len(exp_list)/3) > 128:
 		train()
 
@@ -213,7 +220,7 @@ if __name__ == "__main__":
 	exp_trt 						= True 
 	train_thresh					= 16
 	play_table 						= {}
-	trained_on						= [0]
+	trained_on						= [0,16]
 
 	if len(sys.argv) >= 2:
 		queue_fill_cap 					= int(sys.argv[1])
@@ -238,7 +245,7 @@ if __name__ == "__main__":
 
 
 		#Train model every 100 games 
-		if len(play_table) > train_thresh and not len(play_table) in trained_on:
+		if (len(play_table) % train_thresh == 0) and not len(play_table) in trained_on:
 
 			#Reset the model 
 			del model 
@@ -247,7 +254,8 @@ if __name__ == "__main__":
 			#Train model on random sample of games 
 			load_model(model,gen=model_gen,verbose=True)
 			train(model,8192,gen=model_gen,bs=8,epochs=1)
-			save_model(gen=model_gen)
+			save_model(model,gen=model_gen)
+			trained_on.append(len(play_table))
 
 			#Reset the lookup table 
 			del lookup_table 
