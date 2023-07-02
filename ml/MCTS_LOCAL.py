@@ -154,7 +154,7 @@ class Tree:
 		
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
-	def SEND_EVAL_REQUEST(self,fen='',port=6969,hostname=socket.gethostname()):
+	def SEND_EVAL_REQUEST(self,fen='',port=6969,hostname="10.0.0.217"):
 		
 		eval_msg 			= f"{self.uid}$"+fen
 		self.sock.sendto(eval_msg.encode(),(hostname,port))
@@ -167,7 +167,7 @@ class Tree:
 		v 					= pickle.loads(v)	
 		return prob,v
 
-	def SEND_EXIT_REQUEST(self,port=6969,hostname=socket.gethostname()):
+	def SEND_EXIT_REQUEST(self,port=6969,hostname="10.0.0.217"):
 		finish_request 		= f"ID/{self.id}/ID"
 		self.sock.sendto(finish_request.encode(),(hostname,port))
 
@@ -437,7 +437,7 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_training,[(50,25,i,gen,train_iter) for i in range(n_games)])
+				results 	= pool.starmap(run_training,[(800,250,i,gen,train_iter) for i in range(n_games)])
 			
 	elif sys.argv[1] == "test":
 		if len(sys.argv) >= 3:
