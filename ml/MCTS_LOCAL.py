@@ -156,8 +156,8 @@ class Tree:
 
 	def SEND_EVAL_REQUEST(self,fen='',port=6969,hostname=socket.gethostname()):
 		
-		self.sock.sendto(fen.encode(),(hostname,port))
-		#print(f"\tuid {self.uid} sent req")
+		eval_msg 			= f"{self.uid}$"+fen
+		self.sock.sendto(eval_msg.encode(),(hostname,port))
 
 		prob,addr 			= self.sock.recvfrom(8192)
 		#print(f"\tuid {self.uid} recieved back prob")
