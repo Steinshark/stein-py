@@ -15,6 +15,10 @@ import torch
 import sys 
 import multiprocessing 
 from torch.utils.data import DataLoader
+
+
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
+
 try:
 	chess_moves 		= json.loads(open(os.path.join("C:/gitrepos/steinpy/ml/res/chessmoves.txt"),"r").read())
 except FileNotFoundError:
@@ -308,21 +312,21 @@ def run_training(search_depth,move_limit,game_id,lookup_table=None,lock=None):
 	print(f"\tgame {game_id}\t== in {game_board.result()} after {game_board.ply()} moves in {(time.time()-t0):.2f}s\t {(time.time()-t0)/game_board.ply():.2f}s/move")
 	state_pi		= [torch.tensor(pi,dtype=torch.float16) for pi in state_pi]
 	#Save tensors
-	torch.save(torch.stack(state_repr).float(),f"C:/data/chess/experiences/gen1/game_{game_id}_states")
-	torch.save(torch.stack(state_pi).float(),f"C:/data/chess/experiences/gen1/game_{game_id}_localpi")
-	torch.save(state_outcome.float(),f"C:/data/chess/experiences/gen1/game_{game_id}_results")
+	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"/experiences/gen1/game_{game_id}_states")
+	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"/experiences/gen1/game_{game_id}_localpi")
+	torch.save(state_outcome.float(),DATASET_ROOT+f"/experiences/gen1/game_{game_id}_results")
 
 	return game_id,time.time()-t0
 
 
 def save_model(model:networks.FullNet,gen=1):
-    torch.save(model.state_dict(),f"C:/data/chess/models/gen{gen}")
+    torch.save(model.state_dict(),DATASET_ROOT+f"models/gen{gen}")
 
 
 def load_model(model:networks.FullNet,gen=1,verbose=False):
 	while True:
 		try:
-			model.load_state_dict(torch.load(f"C:/data/chess/models/gen{gen}"))
+			model.load_state_dict(torch.load(DATASET_ROOT+f"/models/gen{gen}"))
 			if verbose:
 				print(f"\tloaded model gen {gen}")
 			return 
@@ -336,7 +340,7 @@ def load_model(model:networks.FullNet,gen=1,verbose=False):
 
 def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
     model = model.float()
-    root                        = f"C:/data/chess/experiences/gen{gen}"
+    root                        = DATASET_ROOT+f"/experiences/gen{gen}"
     experiences                 = []
 
     if not os.listdir(root):
@@ -422,10 +426,10 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_training,[(200,250,i,lookup_table,lock) for i in range(n_games)])
+				results 	= pool.starmap(run_training,[(800,250,i,lookup_table,lock) for i in range(n_games)])
 			
 			print(f"\n\tTraining:")
-			train(model,8096*2,1,32,epochs=5)
+			train(model,8096*2,1,16,epochs=4)
 			save_model(model,0)
 	elif sys.argv[1] == "test":
 		load_model(model,1)

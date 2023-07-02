@@ -9,6 +9,7 @@ import sys
 
 socket.setdefaulttimeout(.00001)
 #						 .002	
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 
 def fen_to_tensor(fen,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -51,13 +52,13 @@ def fen_to_tensor(fen,device=torch.device('cuda' if torch.cuda.is_available() el
 	return torch.tensor(board_tensor,dtype=torch.float,device=device,requires_grad=False)
 
 def save_model(model:FullNet,gen=1):
-	torch.save(model.state_dict(),f"C:/data/chess/models/gen{gen}")
+	torch.save(model.state_dict(),DATASET_ROOT+f"/models/gen{gen}")
 
 
 def load_model(model:FullNet,gen=1,verbose=False):
 	while True:
 		try:
-			model.load_state_dict(torch.load(f"C:/data/chess/models/gen{gen}"))
+			model.load_state_dict(torch.load(DATASET_ROOT+f"/models/gen{gen}"))
 			if verbose:
 				print(f"\tloaded model gen {gen}")
 			return 
