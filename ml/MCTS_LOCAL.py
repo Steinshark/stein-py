@@ -159,11 +159,12 @@ class Tree:
 		eval_msg 			= f"{self.uid}$"+fen
 		self.sock.sendto(eval_msg.encode(),(hostname,port))
 
+		#Receives prob as a pickled float16 numpy array  
 		prob,addr 			= self.sock.recvfrom(8192)
-		#print(f"\tuid {self.uid} recieved back prob")
+		#Receives v as a pickled float64(??) numpy array  
 		v,addr 				= self.sock.recvfrom(512)
-		#print(f"\tuid {self.uid} recieved back v")
-		prob 				= pickle.loads(prob)
+		
+		prob 				= pickle.loads(prob).astype(numpy.float32)
 		v 					= pickle.loads(v)	
 		return prob,v
 
@@ -447,7 +448,7 @@ if __name__ == "__main__":
 
 				#play out games  
 				with multiprocessing.Pool(n_threads) as pool:
-					results 	= pool.starmap(run_training,[(800,250,i,gen,train_id) for i in range(n_games)])
+					results 	= pool.starmap(run_training,[(650,250,i,gen,train_id) for i in range(n_games)])
 				
 	elif sys.argv[1] == "test":
 		if len(sys.argv) >= 3:

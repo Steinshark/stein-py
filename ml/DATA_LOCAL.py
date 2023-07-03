@@ -200,7 +200,7 @@ if __name__ == "__main__":
 	trailer2            			= 0 
 	og_lim              			= 10 
 	queue_fill_cap               	= 10 
-	timeout_thresh      			= .006
+	timeout_thresh      			= .008
 	serve_avg 						= 0 
 	serve_times 					= 0 
 	compute_times 					= 0 
@@ -220,8 +220,10 @@ if __name__ == "__main__":
 	exp_trt 						= True 
 	train_thresh					= 16
 	play_table 						= {}
-	trained_on						= [0,16]
-
+	trained_on						= []
+	games_played					= 0 
+	search_depth 					= 650 
+	move_limit 						= 250 
 	if len(sys.argv) >= 2:
 		queue_fill_cap 					= int(sys.argv[1])
 		old_cap							= queue_fill_cap
@@ -245,7 +247,7 @@ if __name__ == "__main__":
 
 
 		#Train model every 100 games 
-		if (len(play_table) % train_thresh == 0) and not len(play_table) in trained_on:
+		if games_played % 16 == 0 and not games_played in trained_on:
 
 			#Reset the model 
 			del model 
@@ -253,10 +255,10 @@ if __name__ == "__main__":
 			
 			#Train model on random sample of games 
 			load_model(model,gen=model_gen,verbose=True)
-			train(model,8192,gen=model_gen,bs=8,epochs=1)
+			train(model,8192,gen=model_gen,bs=8,epochs=4)
 			save_model(model,gen=model_gen)
-			trained_on.append(len(play_table))
-
+			trained_on.append(games_played)
+			print(f"{Color.TAN}\ttrained on {games_played} - table is {trained_on}")
 			#Reset the lookup table 
 			del lookup_table 
 			lookup_table 		= {}
@@ -270,6 +272,9 @@ if __name__ == "__main__":
 				print(f"\t\tConverted to JIT")
 			if len(sys.argv) >= 2:
 				queue_fill_cap 					= int(sys.argv[1])
+			
+			#Clear CUDA cache 
+			torch.cuda.empty_cache()
 			
 			
 
@@ -292,6 +297,8 @@ if __name__ == "__main__":
 				game_id 			= fen.split('$')[0]
 				if game_id in play_table:
 					play_table[game_id]	+= 1 
+					if (play_table[game_id] % (search_depth*move_limit)) == 0:
+						games_played += 1 
 				else:
 					play_table[game_id] = 1 
 
@@ -327,15 +334,13 @@ if __name__ == "__main__":
 			#Send boards through model 
 			returnables     = [] 
 			t_compute 	 	= time.time()
-			#encodings   	= torch.stack([fen_to_tensor(fen,torch.device("cuda" if torch.cuda.is_available() else "cpu")) for fen in queue.values()])
-			#encodings   	= torch.stack(list(map(fen_to_tensor_no_castle, list(queue.values()))))
 			encodings   	= torch.from_numpy(numpy.asarray(list(map(fen_to_tensor, list(queue.values()))))).float().to(torch.device('cuda'))
 			tensor_times	+= time.time()-t_compute
 			t_compute		= time.time()
 
 			with torch.no_grad():
 				probs,v     	= model.forward(encodings)
-				probs 			= probs.cpu().numpy()
+				probs 			= probs.type(torch.float16).cpu().numpy()
 				v				= v.cpu().numpy()
 			compute_times 	+= time.time()-t_compute
 
