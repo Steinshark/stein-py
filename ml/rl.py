@@ -762,7 +762,7 @@ class Environment:
 
 class Chess(Environment):
 	try:
-		chess_moves 		= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
+		chess_moves 		= json.loads(open("C:/gitrepos/steinpy/ml/res/chessmoves.txt","r").read())
 	except FileNotFoundError:
 		chess_moves 		= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 	
@@ -1329,7 +1329,7 @@ class Tree:
 
 		t_test 					=  0
 		try:
-			chess_moves 			= json.loads(open(os.path.join("steinpy","ml","res","chessmoves.txt"),"r").read())
+			chess_moves 		= json.loads(open("C:/gitrepos/steinpy/ml/res/chessmoves.txt","r").read())
 		except FileNotFoundError:
 			chess_moves 			= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
 		

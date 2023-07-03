@@ -32,7 +32,7 @@ def softmax(x):
 class Node:
 
 
-	def __init__(self,board,p=.5,parent=None,c=3):
+	def __init__(self,board,p=.5,parent=None,c=4):
 
 		self.board 			= board 
 		self.parent 		= parent 
@@ -78,7 +78,6 @@ class Tree:
 			self.root 			= Node(board,0,None)
 			self.root.parent	= None 
 		self.parents 		= {self.root:{None}}
-	
 	
 	#@memory_profiler.profile	
 	def update_tree_nonrecursive_exp(self,x=.95,dirichlet_a=.3,rollout_p=.5,iters=300,abbrev=True,lookup_table=None,lock=None,game_id=None): 
@@ -162,7 +161,7 @@ class Tree:
 		#Receives prob as a pickled float16 numpy array  
 		prob,addr 			= self.sock.recvfrom(8192)
 		#Receives v as a pickled float64(??) numpy array  
-		v,addr 				= self.sock.recvfrom(512)
+		v,addr 				= self.sock.recvfrom(1024)
 		
 		prob 				= pickle.loads(prob).astype(numpy.float32)
 		v 					= pickle.loads(v)	
