@@ -307,25 +307,11 @@ class Chess(TwoPEnv):
 				else:
 					self.result 	= -1 
 					return -1 
-			else:
+			elif "1/2" in res:
 				self.result 	=  0
 				return 0  
-			if self.board.is_checkmate():
-
-				if self.board.turn 	== chess.WHITE:
-					self.result 	= -1 
-					return -1 
-				
-				elif self.board.turn == chess.BLACK:
-					self.result 	= 1 
-					return 1 
-				
-				else:
-					input(f"reall wierd case: {self.board.result}\n\n{self.board}")
-				
 			else:
-				self.result 		= 0 
-				return 0 
+				print(f"weird result '{res}'")
 		
 		else:
 			return None 
