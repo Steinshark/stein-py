@@ -59,12 +59,9 @@ def run_game(game:games.TwoPEnv,model:networks.FullNet or str,search_depth,move_
 		game.make_move(next_move)
 
 		#Update MCTS tree 
-		# child_node 				= mcts_tree.root.children[next_move_i]
 		del mcts_tree
 		mcts_tree					= Tree(game,model,game_id=game_id)
 
-		#Release references to other children
-		#del mcts_tree.root.parent
 		game.is_game_over()
 	
 	send_gameover("10.0.0.60",6969)

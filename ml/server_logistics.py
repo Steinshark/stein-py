@@ -241,7 +241,7 @@ class Server:
 			self.next_update_time	+= self.update_freq
 
 
-	def play_models(self,cur_model_net,challenger_model_net,search_depth,max_moves):
+	def play_models(self,cur_model_net:torch.nn.Module,challenger_model_net:torch.nn.Module,search_depth,max_moves):
 
 		t0 						= time.time() 
 		
