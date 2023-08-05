@@ -9,7 +9,8 @@ from rlcopy import Tree
 from sklearn.utils import extmath 
 import random 
 import os 
-
+from torch.utils.data import DataLoader
+from networks import ChessDataset
 
 def softmax(x):
 		if len(x.shape) < 2:
@@ -37,6 +38,10 @@ class Server:
 		self.socket.bind((socket.gethostname(),6969))
 
 		self.model 				= networks.ChessSmall()
+		self.cur_model 			= 0 
+		self.gen 				= 0 
+		self.train_tresh		= 16
+		self.new_gen_thresh		= 64
 
 		#GAME OPTIONS 
 		self.max_moves 			= max_moves
@@ -52,6 +57,7 @@ class Server:
 		self.sessions 			= [] 
 		self.queue_maxs			= [] 
 		self.games_finished 	= [0]
+		self.generations 		= [] 
 		self.n_games_finished 	= 0 
 		self.n_moves 			= 0 
 
@@ -107,6 +113,9 @@ class Server:
 				if isinstance(repr,str) and repr 	== "gameover":
 					self.n_games_finished += 1
 					continue 
+			
+				if not gen in self.generations:
+					self.generations.append(gen)
 
 				self.queue[addr]      	= repr 
 				iters 					+= 1
@@ -167,9 +176,6 @@ class Server:
 		self.compute_iter += 1
 			
 	
-	#Update length if theres:
-		#-over 1000 entries 
-		#-average past 1000 > 1 
 	def update(self):
 		
 		if len(self.sessions[-1000:]) == 1000 and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 1:
@@ -180,12 +186,23 @@ class Server:
 			self.queue_cap 			+= 1
 		
 		#Check for train 
-		if self.n_games_finished % 100 == 0 and not self.n_games_finished in self.games_finished:
-			print(f"\t{Color.RED}ive finished {self.n_games_finished} games {Color.END}")
-			pass
+		if self.n_games_finished % self.train_tresh == 0 and not self.n_games_finished in self.games_finished:
+			print(f"\n\t{Color.TAN}Finished {self.n_games_finished} games in {(time.time()-self.games_start):.2f}s{Color.END}")
+			self.train(epochs=2)
+			self.games_start = time.time()
+			self.games_finished.append(self.n_games_finished)
+			self.save_model(self.model,gen=self.gen)
+			
+			#Update gen
+			if self.n_games_finished % self.new_gen_thresh == 0:
+				self.gen	+= 1
+				print(f"\n\n\t{Color.GREEN}UPDATED MODEL GENERATION -> {self.gen}\n\n")
 
-	
+				#Duel models
+				if self.gen > 3:
+					self.duel(self.get_generations(),10,20,self.cur_model,4)
 
+			
 	def display_upate(self,update_every=10):
 
 		if not self.started:
@@ -211,6 +228,7 @@ class Server:
 			#Add timeup 
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
+			percent_served	= str(percent_served).ljust(8)
 			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served}%{Color.TAN}\tMax:{self.queue_cap}"
 			#Add process time
 			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\tGames:{self.n_games_finished}{Color.END}"
@@ -286,8 +304,8 @@ class Server:
 		#Load models 
 		cur_model_net 			= networks.ChessSmall()
 		challenger_model_net 	= networks.ChessSmall()
-		load_model(cur_model_net,gen=cur_model,verbose=True)
-		load_model(challenger_model_net,gen=challenger_model,verbose=True) 
+		self.load_model(cur_model_net,gen=cur_model,verbose=True)
+		self.load_model(challenger_model_net,gen=challenger_model,verbose=True) 
 		cur_model_net.eval()
 		challenger_model_net.eval()
 
@@ -298,7 +316,7 @@ class Server:
 
 		#Play cur_model_net as X 
 		for game_i in range(n_games):
-			result 	= play_models(cur_model_net,challenger_model_net,search_depth=search_depth,max_moves=max_moves)
+			result 	= self.play_models(cur_model_net,challenger_model_net,search_depth=search_depth,max_moves=max_moves)
 
 			if result == 1:
 				current_best_games += 1 
@@ -309,7 +327,7 @@ class Server:
 
 		#Play challenger_model_net as X 
 		for game_i in range(n_games):
-			result 	= play_models(challenger_model_net,cur_model_net,search_depth=search_depth,max_moves=max_moves)
+			result 	= self.play_models(challenger_model_net,cur_model_net,search_depth=search_depth,max_moves=max_moves)
 
 			if result == 1:
 				challenger_games += 1 
@@ -332,8 +350,8 @@ class Server:
 		#Delete worst model 
 		print(f"\t{Color.GREEN}best model is {best_model}{Color.END}")
 		print(f"\t{Color.RED}removing {worst_model}{Color.END}")
-		os.remove(DATASET_ROOT+f"\\models\\gen{worst_model}")
-		return best_model
+		os.remove(self.DATASET_ROOT+f"\\models\\gen{worst_model}")
+		self.cur_model 	= best_model
 
 
 	def get_generations(self):
@@ -366,3 +384,63 @@ class Server:
 
 	def get_n_games(self):
 		files 	= os.listdir(self.DATASET_ROOT+f"/experiences/{self.generation}")
+	
+
+	def train(self,n_samples=512,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
+		gen 						= max(self.generations)
+		model 						= self.model.float()
+		root                        = self.DATASET_ROOT+f"\experiences\gen{gen}"
+		experiences                 = []
+		model.train()
+		if not os.listdir(root):
+			print(f"No data to train on")
+			return
+
+
+		print(f"{Color.TAN}\t\tbegin Training:{Color.END}",end='')
+		for game_i in range(500):
+			try:
+				states                      = torch.load(f"{root}/game_{game_i}_states").float().to(DEV)
+				pi                          = torch.load(f"{root}/game_{game_i}_localpi").float().to(DEV)
+				results                     = torch.load(f"{root}/game_{game_i}_results").float().to(DEV)
+				for i in range(len(states)):
+					experiences.append((states[i],pi[i],results[i]))
+			except FileNotFoundError:
+				pass 
+		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints{Color.END}")
+		
+
+		for epoch_i in range(epochs):
+			train_set                   = random.sample(experiences,min(n_samples,len(experiences)))
+
+			dataset                     = networks.ChessDataset(train_set)
+			dataloader                  = DataLoader(dataset,batch_size=bs,shuffle=True)
+			
+			total_loss                  = 0 
+			
+			for batch_i,batch in enumerate(dataloader):
+				
+				#Zero Grad 
+				for p in model.parameters():
+					p.grad                      = None
+
+				#Get Data
+				states                      = batch[0].to(torch.device('cuda'))
+				pi                          = batch[1].to(torch.device('cuda'))
+				outcome                     = batch[2].to(torch.device('cuda'))
+				batch_len                   = len(states)
+
+				#Get model predicitons
+				pi_pred,v_pred              = model.forward(states)
+				#Calc model loss 
+				loss                        = torch.nn.functional.mse_loss(v_pred.view(-1),outcome,reduction='mean') + torch.nn.functional.cross_entropy(pi_pred,pi,)
+				total_loss                  += loss.mean().item()
+				loss.backward() 
+
+				#Backpropogate
+				model.optimizer.step()
+			
+			print(f"\t\t{Color.BLUE}Epoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}{Color.END}")
+
+		print(f"\n")
+

@@ -29,7 +29,7 @@ def softmax(x):
 def run_game(game:games.TwoPEnv,model:networks.FullNet or str,search_depth,move_limit,game_id,gen=999):
 	
 	t0 						= time.time() 
-	game 					= game(max_moves=move_limit)
+	game 					= game(max_moves=move_limit,gen=gen)
 	mcts_tree 				= Tree(game,model,game_id=game_id)
 	move_indices            = list(range(game.move_space))
 	state_repr              = [] 
@@ -165,6 +165,6 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",100,10,i,gen) for i in range(n_games)])
+				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",100,4,i,gen) for i in range(n_games)])
 			print(f"finished ")
 			

@@ -67,7 +67,6 @@ class Tree:
 		self.model 			= model 
 		self.device	 		= device
 		self.uid 			= game_id
-		
 		if isinstance(self.model,torch.nn.Module):
 			self.mode 			= "Manual"
 		else:
@@ -159,10 +158,8 @@ class Tree:
 			v 					= pickle.loads(v)	
 			return prob,v
 		except TimeoutError:
-			print(f"RETRY ON TIMEOUT - {self.uid}")
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 		except OSError as ose:
-			print(f"RETRY ON Out Of Order - {self.uid}/n{ose}")
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 
 
