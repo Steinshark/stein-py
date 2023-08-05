@@ -298,7 +298,20 @@ class Chess(TwoPEnv):
 		game_over 			=  self.board.is_checkmate() or self.board.is_insufficient_material() or self.board.is_stalemate() or self.board.is_seventyfive_moves() or self.move > self.max_moves
 
 		if game_over:
+
+			res 		= self.board.result()
+			if "1" in res and not "1/2" in res:
+				if res[0] == "1":
+					self.result 	= 1 
+					return 1 
+				else:
+					self.result 	= -1 
+					return -1 
+			else:
+				self.result 	=  0
+				return 0  
 			if self.board.is_checkmate():
+
 				if self.board.turn 	== chess.WHITE:
 					self.result 	= -1 
 					return -1 
