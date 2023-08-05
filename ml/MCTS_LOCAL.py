@@ -16,6 +16,8 @@ import multiprocessing
 from torch.utils.data import DataLoader
 from sklearn.utils import extmath 
 
+
+socket.setdefaulttimeout(1)
 DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
 try:
 	chess_moves 		= json.loads(open(os.path.join("C:/gitrepos/steinpy/ml/res/chessmoves.txt"),"r").read())
@@ -156,16 +158,22 @@ class Tree:
 	def SEND_EVAL_REQUEST(self,fen='',port=6969,hostname="10.0.0.217"):
 		
 		eval_msg 			= f"{self.uid}$"+fen
-		self.sock.sendto(eval_msg.encode(),(hostname,port))
-
-		#Receives prob as a pickled float16 numpy array  
-		prob,addr 			= self.sock.recvfrom(8192)
-		#Receives v as a pickled float64(??) numpy array  
-		v,addr 				= self.sock.recvfrom(1024)
+		try:
+			self.sock.sendto(eval_msg.encode(),(hostname,port))
+			#Receives prob as a pickled float16 numpy array  
+			prob,addr 			= self.sock.recvfrom(8192)
+			#Receives v as a pickled float64(??) numpy array  
+			v,addr 				= self.sock.recvfrom(1024)
+			prob 				= pickle.loads(prob).astype(numpy.float32)
+			v 					= pickle.loads(v)	
+			return prob,v
+		except TimeoutError:
+			print(f"RETRY ON TIMEOUT - {self.uid}")
+			self.SEND_EVAL_REQUEST(fen=fen,port=port,hostname=hostname)
+		except OSError:
+			print(f"RETRY ON Out Of Order - {self.uid}")
+			self.SEND_EVAL_REQUEST(fen=fen,port=port,hostname=hostname)
 		
-		prob 				= pickle.loads(prob).astype(numpy.float32)
-		v 					= pickle.loads(v)	
-		return prob,v
 
 	def SEND_EXIT_REQUEST(self,port=6969,hostname="10.0.0.217"):
 		finish_request 		= f"ID/{self.id}/ID"

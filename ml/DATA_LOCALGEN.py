@@ -4,17 +4,17 @@ import time
 import numpy 
 import torch
 import networks 
-from networks import ChessNet, FullNet, ChessNetCompat, ChessDataset
 import pickle 
 import sys 
 import warnings
 import os 
 from torch.utils.data import DataLoader
+from server_logistics import fill_queue
 
 warnings.simplefilter('ignore')
 
-socket.setdefaulttimeout(.00004)
-DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
+socket.setdefaulttimeout(.00002)
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess2"
 
 class Color:
 	HEADER = '\033[95m'
@@ -30,87 +30,11 @@ class Color:
 if os.listdir(DATASET_ROOT):
 	print(f"{Color.GREEN}SERVER CHECK - GOOD {Color.END}") 
 
-def fen_to_tensor(fen,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
-
-	#Encoding will be an 8x8 x n tensor 
-	#	7 for whilte, 7 for black 
-	#	4 for castling 7+7+4 
-	# 	1 for move 
-	#t0 = time.time()
-	#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
-	board_tensor 	= numpy.zeros(shape=(17,8,8))
-	piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
-	#Go through FEN and fill pieces
-	for i in range(1,9):
-		fen 	= fen.replace(str(i),"e"*i)
-
-	splitted    = fen.split(" ")
-	position	= splitted[0].split("/")
-	turn 		= splitted[1]
-	castling 	= splitted[2]
-	
-	#Place pieces
-	for rank_i,rank in enumerate(reversed(position)):
-		for file_i,piece in enumerate(rank): 
-			if not piece == "e":
-				board_tensor[piece_indx[piece],rank_i,file_i]	= 1.  
-	
-	#print(f"init took {(time.time()-t0)}")
-	#Place turn 
-	slice 	= 12 
-	#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
-	board_tensor[slice,:,:]   = numpy.ones(shape=(8,8)) * 1 if turn == "w" else -1
-
-	#Place all castling allows 
-	for castle in ["K","Q","k","q"]:
-		slice += 1
-		#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if castle in castling else 0
-		board_tensor[slice,:,:]	= numpy.ones(shape=(8,8)) * 1 if castle in castling else 0
-
-	return board_tensor
-	#return torch.tensor(board_tensor,dtype=torch.float,device=device,requires_grad=False)
-
-
-def fen_to_tensor_no_castle(fen,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
-
-	#Encoding will be an 8x8 x n tensor 
-	#	7 for whilte, 7 for black 
-	#	4 for castling 7+7+4 
-	# 	1 for move 
-	#t0 = time.time()
-	#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
-	board_tensor 	= numpy.zeros(shape=(13,8,8))
-	piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":6,"n":7,"b":8,"q":9,"k":10,"p":11}
-	
-	#Go through FEN and fill pieces
-	for i in range(1,9):
-		fen 	= fen.replace(str(i),"e"*i)
-
-	position	= fen.split(" ")[0].split("/")
-	turn 		= fen.split(" ")[1]
-	castling 	= fen.split(" ")[2]
-	
-	#Place pieces
-	for rank_i,rank in enumerate(reversed(position)):
-		for file_i,piece in enumerate(rank): 
-			if not piece == "e":
-				board_tensor[piece_indx[piece],rank_i,file_i]	= 1.  
-	
-	#print(f"init took {(time.time()-t0)}")
-	#Place turn 
-	slice 	= 12 
-	#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
-	board_tensor[slice,:,:]   = numpy.ones(shape=(8,8)) * 1 if turn == "w" else -1
-
-	#return torch.tensor(board_tensor,device=device,dtype=torch.float,requires_grad=False)
-	return board_tensor
-
-
-def save_model(model:FullNet,gen=1):
+def save_model(model:networks.FullNet,gen=1):
 	torch.save(model.state_dict(),DATASET_ROOT+f"\models\gen{gen}")
 
 
-def load_model(model:FullNet,gen=1,verbose=False,tablesize=0):
+def load_model(model:networks.FullNet,gen=1,verbose=False,tablesize=0):
 	while True:
 		try:
 			model.load_state_dict(torch.load(DATASET_ROOT+f"\models\gen{gen}"))
@@ -152,7 +76,7 @@ def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('c
 	for epoch_i in range(epochs):
 		train_set                   = random.sample(experiences,min(n_samples,len(experiences)))
 
-		dataset                     = ChessDataset(train_set)
+		dataset                     = networks.ChessDataset(train_set)
 		dataloader                  = DataLoader(dataset,batch_size=bs,shuffle=True)
 		
 		total_loss                  = 0 
@@ -190,7 +114,6 @@ def check_train(n=128):
 	if int(len(exp_list)/3) > 128:
 		train()
 
-
 #Server Code 
 
 #TODO:
@@ -201,7 +124,7 @@ if __name__ == "__main__":
 	trailer2            			= 0 
 	og_lim              			= 10 
 	queue_fill_cap               	= 10 
-	timeout_thresh      			= .008
+	timeout_thresh      			= .08
 	serve_avg 						= 0 
 	serve_times 					= 0 
 	compute_times 					= 0 
@@ -214,14 +137,14 @@ if __name__ == "__main__":
 	fills 							= [] 
 	queue   						= {}
 	lookup_table 					= {}
-	use_lookups 					= True
+	use_lookups 					= False
 	lookup_ply_len					= 25
 	lookups 						= 0
 	total_lookups	 				= 0 
-	exp_trt 						= True 
+	exp_trt 						= False 
 	train_thresh					= 16
 	play_table 						= {}
-	trained_on						= []
+	trained_on						= [0]
 	games_played					= 0 
 	search_depth 					= 650 
 	move_limit 						= 250 
@@ -235,11 +158,9 @@ if __name__ == "__main__":
 	sock    						= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 	sock.bind((socket.gethostname(),6969))
 	print(f"{Color.GREEN}Server Online{Color.END}",flush =True)
-	#torch.backends.cudnn.benchmark = True
 
-	model 	= ChessNet(optimizer=torch.optim.SGD,optimizer_kwargs={"lr":2e-5,"weight_decay":2.5e-6,"momentum":.75,'nesterov':True},n_ch=17,device=torch.device('cuda'),n_layers=20)
+	model 	= networks.ChessSmall(optimizer=torch.optim.SGD,optimizer_kwargs={"lr":2e-5,"weight_decay":2.5e-6,"momentum":.75,'nesterov':True},device=torch.device('cuda'))
 	server_start        = time.time()
-
 
 
 	while i:
@@ -252,7 +173,7 @@ if __name__ == "__main__":
 
 			#Reset the model 
 			del model 
-			model 				= ChessNet(optimizer=torch.optim.SGD,optimizer_kwargs={"lr":2e-5,"weight_decay":2.5e-6,"momentum":.75,'nesterov':True},n_ch=17,device=torch.device('cuda'),n_layers=20)
+			model 	= networks.Model1(optimizer=torch.optim.SGD,optimizer_kwargs={"lr":2e-5,"weight_decay":2.5e-6,"momentum":.75,'nesterov':True},device=torch.device('cuda'))
 			
 			#Train model on random sample of games 
 			load_model(model,gen=model_gen,verbose=True)
@@ -267,7 +188,7 @@ if __name__ == "__main__":
 			#Set mode for training
 			model.eval()
 			if exp_trt:
-				model 			= torch.jit.trace(model,[torch.randn((queue_fill_cap,17,8,8)).to("cuda")])
+				model 			= torch.jit.trace(model,[torch.randn((queue_fill_cap,8,6)).to("cuda")])
 				model 			= torch.jit.freeze(model)
 				model.loaded 	= True 
 				print(f"\t\tConverted to JIT")
@@ -289,53 +210,14 @@ if __name__ == "__main__":
 			queue_fill_cap += 1
 
 		#Fill up queue or timeout after timeout_thresh seconds
-		while len(queue) < queue_fill_cap and time.time()-listen_start < timeout_thresh:
-			
-			#Listen for a connection
-			try:
-				fen,addr            = sock.recvfrom(1024)
-				fen                 = fen.decode() 
-				game_id 			= fen.split('$')[0]
-				if game_id in play_table:
-					play_table[game_id]	+= 1 
-					if (play_table[game_id] % (search_depth*move_limit)) == 0:
-						games_played += 1 
-				else:
-					play_table[game_id] = 1 
-
-				fen					= fen.split('$')[1]
-				fen_stripped 		= " ".join(fen.split(' ')[:2])
-
-				#if fen is in lookup, immediate send it back out 
-				if use_lookups and fen_stripped in lookup_table:
-					prob,v     	= lookup_table[fen_stripped]
-					sent 		= False 
-					while not sent:
-						try:
-							sock.sendto(prob,addr)
-							sock.sendto(v,addr)
-							sent 	= True
-						except TimeoutError:
-							pass
-					lookups += 1
-					continue
-				else:
-					queue[addr]         = fen 
-
-			#Idle 
-			except TimeoutError:
-				cur_time    = int(time.time()-listen_start) % 10 == 0
-
-				if cur_time == trailer and len(queue) == 0:
-					print(f"idling")
-					trailer += 1
-
+		queue = fill_queue(queue_max_cap=queue_fill_cap,sock=sock,timeout_t=timeout_thresh,play_table=play_table,search_depth=search_depth,move_limit=move_limit)
+		
 		if queue:
 
 			#Send boards through model 
 			returnables     = [] 
 			t_compute 	 	= time.time()
-			encodings   	= torch.from_numpy(numpy.asarray(list(map(fen_to_tensor, list(queue.values()))))).float().to(torch.device('cuda'))
+			encodings   	= torch.from_numpy(numpy.stack([np[numpy.newaxis,:] for np in queue.values()])).float().to(torch.device('cuda'))
 			tensor_times	+= time.time()-t_compute
 			t_compute		= time.time()
 
