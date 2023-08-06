@@ -31,7 +31,7 @@ class Color:
 
 class Server:
 
-	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0002):
+	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.00004):
 		self.queue          	= {} 
 		socket.setdefaulttimeout(socket_timeout)
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -50,7 +50,7 @@ class Server:
 		#QUEUE OPTIONS 
 		self.queue_cap			= queue_cap
 		self.checked_updates	= 0
-		self.timeout			= .000002
+		self.timeout			= .002
 		self.original_queue_cap = queue_cap
 
 		#METRICS 
@@ -343,7 +343,7 @@ class Server:
 			elif result == 0:
 				tiegames += 1
 		
-		challenger_ratio 	= ((challenger_games) / (current_best_games+challenger_games))
+		challenger_ratio 	= ((challenger_games) / (current_best_games+challenger_games+.01))
 
 		if challenger_ratio >= .55:
 			best_model 			= challenger_model
