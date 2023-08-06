@@ -31,7 +31,7 @@ class Color:
 
 class Server:
 
-	def __init__(self,queue_cap=16,max_moves=120,search_depth=800,socket_timeout=.0002):
+	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0002):
 		self.queue          	= {} 
 		socket.setdefaulttimeout(socket_timeout)
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)

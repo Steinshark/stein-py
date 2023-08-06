@@ -279,7 +279,6 @@ class Chess(TwoPEnv):
 
 	def get_legal_moves(self):
 		return [self.move_to_index[move] for move in self.board.generate_legal_moves()]
-			
 
 	
 	def make_move(self,move:int or chess.Move):

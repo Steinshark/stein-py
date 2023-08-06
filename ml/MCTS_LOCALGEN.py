@@ -162,6 +162,6 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",100,4,i,gen) for i in range(n_games)])
+				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",800,200,i,gen) for i in range(n_games)])
 			print(f"finished ")
 			
