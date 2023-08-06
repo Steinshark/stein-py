@@ -167,14 +167,12 @@ class Tree:
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 
 
-	def get_best_node_max(self,node:Node,score_mult):
-		score_mult *= -1
+	def get_best_node_max(self,node:Node):
 		while node.children:
 				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
 				node 				= best_node
-				score_mult			*= -1
 
-		return node, score_mult
+		return node
 	
 
 	def get_policy(self,search_iters,abbrev=True):
