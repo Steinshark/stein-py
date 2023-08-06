@@ -82,6 +82,7 @@ class Server:
 		self.chunk_fills 		= [] 
 		self.chunk_maxs			= [] 
 
+		self.load_model(self.model,5)
 
 		self.games_start 	= time.time()
 		while True:
