@@ -149,7 +149,7 @@ class Tree:
 
 	#217 is downstairs
 	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.60"):
+	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217"):
 		
 		try:
 			self.sock.sendto(pickle.dumps(self.game_obj.build_as_network()),(hostname,port))

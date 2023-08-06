@@ -64,7 +64,7 @@ def run_game(game:games.TwoPEnv,model:networks.FullNet or str,search_depth,move_
 
 		game.is_game_over()
 	
-	send_gameover("10.0.0.60",6969)
+	send_gameover("10.0.0.217",6969)
 	#Check game outcome 
 	if game.is_game_over() == 1:
 		state_outcome = torch.ones(len(state_repr),dtype=torch.int8)
