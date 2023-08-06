@@ -195,7 +195,7 @@ class Server:
 		#Check for train 
 		if self.n_games_finished % self.train_tresh == 0 and not self.n_games_finished in self.games_finished:
 			print(f"\n\t{Color.TAN}Finished {self.n_games_finished} games in {(time.time()-self.games_start):.2f}s{Color.END}")
-			self.train(epochs=2)
+			self.train(epochs=2,n_samples=2048,bs=32)
 			self.games_start = time.time()
 			self.games_finished.append(self.n_games_finished)
 			self.save_model(self.model,gen=self.gen)
@@ -206,7 +206,7 @@ class Server:
 				print(f"\n\n\t{Color.GREEN}UPDATED MODEL GENERATION -> {self.gen}\n\n")
 
 				#Duel models
-				if self.gen > 3:
+				if len(self.get_generations()) > 3:
 					self.duel(self.get_generations(),10,20,self.cur_model,4)
 
 			
