@@ -763,32 +763,35 @@ class ChessSmall(FullNet):
 			torch.nn.Conv2d(256,512,kernel_size,1,1),
 			torch.nn.ReLU(),
 
+			torch.nn.Conv2d(512,512,kernel_size,1,1),
+			torch.nn.ReLU(),
+
 			torch.nn.Conv2d(512,1024,kernel_size,1,1),
 			torch.nn.ReLU()
 		).to(device)
 
 		self.policy_head       = torch.nn.Sequential(  
-			torch.nn.Conv2d(1024,32,1,1,1,bias=True),
+			torch.nn.Conv2d(1024,64,1,1,1,bias=True),
 			act_fn(),
 			torch.nn.Flatten(),
 
-			torch.nn.Linear(3200,1968),
+			torch.nn.Linear(6400,1968),
 			act_fn(),
 			torch.nn.Softmax(dim=1)
 		).to(device)
 
 		self.value_head      = torch.nn.Sequential( 
-			torch.nn.Conv2d(1024,16,1,1,1,bias=True), 
+			torch.nn.Conv2d(1024,64,1,1,1,bias=True), 
 			act_fn(),
 			torch.nn.Flatten(),
 
-			torch.nn.Linear(1600,256), 
+			torch.nn.Linear(6400,512), 
 			act_fn(),
 
-			torch.nn.Linear(256,64), 
+			torch.nn.Linear(512,512), 
 			act_fn(),
 			
-			torch.nn.Linear(64,1)
+			torch.nn.Linear(512,1)
 			#torch.nn.Tanh()
 		).to(device)
 
