@@ -97,7 +97,7 @@ class Tree:
 
 		for iter_i in range(iters):
 			node = self.root
-			score_mult = 1 if node.game_obj.turn == 1 else -1
+			score_mult = 1
 
 			#Find best leaf node 
 			node, score_mult = self.get_best_node_max(node,score_mult)
@@ -158,6 +158,7 @@ class Tree:
 			v 					= pickle.loads(v)	
 			return prob,v
 		except TimeoutError:
+			time.sleep(3)
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 		except OSError as ose:
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)

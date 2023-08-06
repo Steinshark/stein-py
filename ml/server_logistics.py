@@ -85,14 +85,20 @@ class Server:
 
 		self.games_start 	= time.time()
 		while True:
-			
-			self.fill_start 	= time.time()
-			self.fill_queue()
-			self.process_start 	= time.time()
-			self.process_queue()
-			self.update_start	= time.time()
-			self.update()
-			self.display_upate()
+			try:
+				self.fill_start 	= time.time()
+				self.fill_queue()
+				self.process_start 	= time.time()
+				self.process_queue()
+				self.update_start	= time.time()
+				self.update()
+				self.display_upate()
+			except ConnectionResetError:
+				print(f"\t{Color.RED}Connection Reset - Idling 10s{Color.END}")
+				time.sleep(10)
+				self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+				self.socket.bind((socket.gethostname(),6969))
+				print(f"\t{Color.GREEN}Socket Reset{Color.END}\n\n")
 
 
 	def fill_queue(self):
