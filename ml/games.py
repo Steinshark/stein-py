@@ -307,7 +307,7 @@ class Chess(TwoPEnv):
 				else:
 					self.result 	= -1 
 					return -1 
-			elif "1/2" in res:
+			elif "1/2" in res or "*" in res:
 				self.result 	=  0
 				return 0  
 			else:
