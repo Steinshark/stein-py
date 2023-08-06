@@ -96,19 +96,22 @@ class Tree:
 		flag					= False
 
 		for iter_i in range(iters):
-			node = self.root
-			score_mult = 1
+			node 					= self.root
+			starting_move 			= 1 if self.root.game_obj.board.turn == chess.WHITE else -1
 
 			#Find best leaf node 
-			node, score_mult = self.get_best_node_max(node,score_mult)
+			node 					= self.get_best_node_max(node)
 
 			#Check if game over
-
-			result:float 		= node.game_obj.is_game_over()
+			result:float or bool 	= node.game_obj.is_game_over()
 			
 			if not result is None:
-				v 	=   result * score_mult
-			
+				if result == 0:
+					v = 0 
+				elif result == starting_move:
+					v = 1 
+				else:
+					v = -1 
 			#expand 
 			else:
 

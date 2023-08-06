@@ -302,7 +302,6 @@ class Chess(TwoPEnv):
 			res 		= self.board.result()
 			if "1" in res and not "1/2" in res:
 				if res[0] == "1":
-					print(f"res was {res} - making 1")
 					self.result 	= 1 
 					return 1 
 				else:
