@@ -604,6 +604,7 @@ class ChessConvNet(FullNet):
 
 		return self.prob_net(base_out),self.value_net(base_out)
 
+
 class ChessConvNetLG(FullNet):
 
 	def __init__(self,act_fn=torch.nn.LeakyReLU,device=torch.device('cuda'if torch.cuda.is_available() else 'cpu'),n_ch=19):
@@ -670,6 +671,7 @@ class ChessConvNetLG(FullNet):
 		base_out            = self.base_model(x)
 
 		return self.prob_net(base_out),self.value_net(base_out)
+
 
 class ChessDataset(Dataset):
 
@@ -755,18 +757,18 @@ class ChessSmall(FullNet):
 			torch.nn.Conv2d(n_ch,128,kernel_size,1,1),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(128,128,kernel_size,1,1),
-			torch.nn.ReLU(),
-
-			torch.nn.Conv2d(128,128,kernel_size,1,1),
-			torch.nn.ReLU(),
-
 			torch.nn.Conv2d(128,256,kernel_size,1,1),
+			torch.nn.ReLU(),
+
+			torch.nn.Conv2d(256,512,kernel_size,1,1),
+			torch.nn.ReLU(),
+
+			torch.nn.Conv2d(512,1024,kernel_size,1,1),
 			torch.nn.ReLU()
 		).to(device)
 
 		self.policy_head       = torch.nn.Sequential(  
-			torch.nn.Conv2d(256,32,1,1,1,bias=True),
+			torch.nn.Conv2d(1024,32,1,1,1,bias=True),
 			act_fn(),
 			torch.nn.Flatten(),
 
@@ -776,7 +778,7 @@ class ChessSmall(FullNet):
 		).to(device)
 
 		self.value_head      = torch.nn.Sequential( 
-			torch.nn.Conv2d(256,16,1,1,1,bias=True), 
+			torch.nn.Conv2d(1024,16,1,1,1,bias=True), 
 			act_fn(),
 			torch.nn.Flatten(),
 
