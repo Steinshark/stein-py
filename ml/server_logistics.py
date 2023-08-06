@@ -414,6 +414,8 @@ class Server:
 					experiences.append((states[i],pi[i],results[i]))
 			except FileNotFoundError:
 				pass 
+			except RuntimeError:
+				pass
 		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints{Color.END}")
 		
 
