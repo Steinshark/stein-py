@@ -71,7 +71,7 @@ class Server:
 		self.server_start 		= None
 		self.started 			= False 
 
-		self.DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess3"
+		self.DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
 
 
 	def run_server(self,update_every=10):

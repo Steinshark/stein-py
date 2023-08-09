@@ -6,7 +6,7 @@ import numpy
 import random
 import torch 
 import itertools 
-DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess2"
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 import os 
 
 import networks
@@ -343,5 +343,5 @@ if __name__ == "__main__" and False:
 if __name__ == "__main__" and True:
 
 	from server_logistics import Server
-	s 	= Server(16,300,325)
-	s.run_server(8)
+	s 	= Server(8,300,325)
+	s.run_server(20)

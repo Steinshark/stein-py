@@ -63,7 +63,7 @@ def run_game(game:games.TwoPEnv,model:networks.FullNet or str,move_limit,search_
 		mcts_tree					= Tree(game,model,game_id=game_id)
 
 		game.is_game_over()
-	
+	del mcts_tree
 	send_gameover("10.0.0.217",6969)
 	#Check game outcome 
 	if game.is_game_over() == 1:
@@ -149,7 +149,7 @@ def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('c
 if __name__ == "__main__":
 
 
-	n_threads 			= 8
+	n_threads 			= 6
 	n_games 			= 64 
 	gen 				= 0 
 	offset 				= 1 
