@@ -393,7 +393,7 @@ class Server:
 		files 	= os.listdir(self.DATASET_ROOT+f"/experiences/{self.generation}")
 	
 
-	def train(self,n_samples=512,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
+	def train(self,n_samples=2048,bs=32,epochs=2,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
 		gen 						= max(self.generations)
 		model 						= self.model.float()
 		root                        = self.DATASET_ROOT+f"\experiences\gen{gen}"

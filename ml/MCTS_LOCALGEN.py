@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
 	n_threads 			= 8
 	n_games 			= 64 
-	gen 				= 999 
+	gen 				= 0 
 	offset 				= 1 
 
 	while True:

@@ -42,6 +42,8 @@ class Node:
 		self.score 			= 0
 
 		self.uuid			= uuid
+
+		self.fen 			= game_obj.board.fen().split("-")[0]
 	
 	def get_score(self):
 		return self.Q_val + ((self.c * self.p) * (sqrt(sum([m.num_visited for m in self.parent.children.values()])) / (1 + self.num_visited)))
@@ -80,7 +82,6 @@ class Tree:
 			self.root 			= Node(game_obj,0,None)
 			self.root.parent	= None 
 
-		self.parents 		= {self.root:{None}}
 
 
 	def update_tree(self,x=.95,dirichlet_a=.3,rollout_p=.25,iters=300,abbrev=True): 
@@ -94,6 +95,7 @@ class Tree:
 		t_test 					=  0
 		self.root.parent		= None 
 		flag					= False
+		self.nodes 				= {}
 
 		for iter_i in range(iters):
 			node 					= self.root
@@ -101,6 +103,12 @@ class Tree:
 
 			#Find best leaf node 
 			node 					= self.get_best_node_max(node)
+
+			#Add node to global list
+			if not node.fen in self.nodes:
+				self.nodes[node.fen]= [node]
+			else:
+				self.nodes[node.fen].append(node)
 
 			#Check if game over
 			result:float or bool 	= node.game_obj.is_game_over()
@@ -112,6 +120,7 @@ class Tree:
 					v = 1 
 				else:
 					v = -1 
+			
 			#expand 
 			else:
 
@@ -133,7 +142,6 @@ class Tree:
 
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
 
-
 				for move in node.children:
 					node.children[move].game_obj.make_move(move)
 					node.children[move].move 	= move	
@@ -142,7 +150,8 @@ class Tree:
 			if isinstance(v,torch.Tensor):
 				v = v.item()
 
-			node.bubble_up(v)				
+			for identical_node in self.nodes[node.fen]:
+				identical_node.bubble_up(v)				
 
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 

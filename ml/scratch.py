@@ -63,6 +63,7 @@ def run_game(game:games.TwoPEnv,model,search_depth,move_limit,game_id,gen=999):
 
 		#Build a local policy 
 		local_policy 		= mcts_tree.update_tree(iters=search_depth)
+		print(f"local policy is {local_policy}\ndepth: {search_depth} with n_searches: {sum(list(local_policy.values()))}")
 		local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
 		for key,prob in zip(local_policy.keys(),local_softmax):
@@ -308,7 +309,7 @@ def get_generations():
 
 
 
-if __name__ == "__main__" and False	:
+if __name__ == "__main__" and True	:
 
 	train_rotations 		 = 5
 	search_depth 			 = 1000
@@ -324,7 +325,7 @@ if __name__ == "__main__" and False	:
 
 		for round in range(train_rotations): 
 			n_games 		= random.randint(4,16)
-			run_train_iteration(games.Chess,train_model,800,120,round,n_games,generation)
+			run_train_iteration(games.Chess,train_model,300,100,round,n_games,generation)
 			#load_model(base_model,gen=generation,verbose=False)
 			train(train_model,n_samples=2048,gen=generation,bs=64,epochs=2)
 			save_model(train_model,gen=generation,verbose=False)
@@ -340,7 +341,7 @@ if __name__ == "__main__" and False:
 	model 			= torch.jit.freeze(model)
 	run_game(games.Chess,model,1000,5,-1,0)
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 
 	from server_logistics import Server
 	s 	= Server(16,200,800)
