@@ -18,7 +18,7 @@ from sklearn.utils import extmath
 from rlcopy import Node,Tree
 import games
 socket.setdefaulttimeout(2)
-DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess3"
+DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
 		if len(x.shape) < 2:
@@ -26,7 +26,7 @@ def softmax(x):
 		return extmath.softmax(x)[0]
 
 
-def run_game(game:games.TwoPEnv,model:networks.FullNet or str,search_depth,move_limit,game_id,gen=999):
+def run_game(game:games.TwoPEnv,model:networks.FullNet or str,move_limit,search_depth,game_id,gen=999):
 	
 	t0 						= time.time() 
 	game 					= game(max_moves=move_limit,gen=gen)
@@ -162,6 +162,6 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",800,200,i,gen) for i in range(n_games)])
+				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",300,325,i,gen) for i in range(n_games)])
 			print(f"finished ")
 			

@@ -207,7 +207,7 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel(self.get_generations(),10,20,self.cur_model,4)
+					self.duel(self.get_generations(),25,325,self.cur_model,300)
 
 			
 	def display_upate(self,update_every=10):
