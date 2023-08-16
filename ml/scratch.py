@@ -343,5 +343,5 @@ if __name__ == "__main__" and False:
 if __name__ == "__main__" and True:
 
 	from server_logistics import Server
-	s 	= Server(8,300,325)
-	s.run_server(20)
+	s 	= Server(10,300,300,start_gen=2)
+	s.run_server(60)

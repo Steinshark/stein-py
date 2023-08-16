@@ -31,16 +31,17 @@ class Color:
 
 class Server:
 
-	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.00004):
+	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.00004,start_gen=0):
 		self.queue          	= {} 
 		socket.setdefaulttimeout(socket_timeout)
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.socket.bind((socket.gethostname(),6969))
 
 		self.model 				= networks.ChessSmall()
+		
 		self.cur_model 			= 0 
 		self.gen 				= 0 
-		self.train_tresh		= 16
+		self.train_tresh		= 32
 		self.new_gen_thresh		= 64
 
 		#GAME OPTIONS 
@@ -72,6 +73,7 @@ class Server:
 		self.started 			= False 
 
 		self.DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
+		self.load_model(self.model,start_gen)
 
 
 	def run_server(self,update_every=10):
@@ -138,6 +140,12 @@ class Server:
 		self.sessions.append(len(self.queue))
 		self.queue_maxs.append(self.queue_cap)
 
+		self.sessions				= self.sessions[-5000:]
+		self.queue_maxs				= self.queue_maxs[-5000:]
+
+		self.chunk_fills			= self.chunk_fills[-5000:]
+		self.chunk_maxs				= self.chunk_fills[-5000:]
+
 
 	def process_queue(self):
 
@@ -195,7 +203,7 @@ class Server:
 		#Check for train 
 		if self.n_games_finished % self.train_tresh == 0 and not self.n_games_finished in self.games_finished:
 			print(f"\n\t{Color.TAN}Finished {self.n_games_finished} games in {(time.time()-self.games_start):.2f}s{Color.END}")
-			self.train(epochs=2,n_samples=2048,bs=32)
+			self.train(epochs=4,n_samples=4096,bs=32)
 			self.games_start = time.time()
 			self.games_finished.append(self.n_games_finished)
 			self.save_model(self.model,gen=self.gen)
@@ -207,7 +215,8 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel(self.get_generations(),25,325,self.cur_model,300)
+					self.duel(self.get_generations(),25,300,self.cur_model,300)
+					self.load_model(self.model,self.cur_model)
 
 			
 	def display_upate(self,update_every=10):
@@ -221,7 +230,7 @@ class Server:
 		if cur_time > self.next_update_time:
 
 			#Get numbers over last chunk 
-			percent_served 			= round(100*(sum(self.chunk_fills) / sum(self.chunk_maxs)))
+			percent_served 			= round(100*(sum(self.chunk_fills) / (sum(self.chunk_maxs)+.001)))
 
 			if percent_served < 50:
 				color 					= Color.RED 

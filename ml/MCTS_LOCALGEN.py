@@ -37,32 +37,34 @@ def run_game(game:games.TwoPEnv,model:networks.FullNet or str,move_limit,search_
 	state_outcome           = [] 
 
 	while game.get_result() is None:
+		try:
+			#Build a local policy 
+			local_policy 		= mcts_tree.update_tree(iters=search_depth)
+			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
-		#Build a local policy 
-		local_policy 		= mcts_tree.update_tree(iters=search_depth)
-		local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
+			for key,prob in zip(local_policy.keys(),local_softmax):
+				local_policy[key] = prob
 
-		for key,prob in zip(local_policy.keys(),local_softmax):
-			local_policy[key] = prob
+			#construct trainable policy 
+			pi              	= numpy.zeros(game.move_space)
+			for move_i,prob in local_policy.items():
+				pi[move_i]    = prob 
 
-		#construct trainable policy 
-		pi              	= numpy.zeros(game.move_space)
-		for move_i,prob in local_policy.items():
-			pi[move_i]    = prob 
+			#sample move from policy 
+			next_move             = random.choices(move_indices,weights=pi,k=1)[0]
 
-		#sample move from policy 
-		next_move             = random.choices(move_indices,weights=pi,k=1)[0]
+			#Add experiences to set 
+			state_repr.append(game.get_repr())
+			state_pi.append(pi)
+			game.make_move(next_move)
 
-		#Add experiences to set 
-		state_repr.append(game.get_repr())
-		state_pi.append(pi)
-		game.make_move(next_move)
+			#Update MCTS tree 
+			del mcts_tree
+			mcts_tree					= Tree(game,model,game_id=game_id)
 
-		#Update MCTS tree 
-		del mcts_tree
-		mcts_tree					= Tree(game,model,game_id=game_id)
-
-		game.is_game_over()
+			game.is_game_over()
+		except RecursionError:
+			pass
 	del mcts_tree
 	send_gameover("10.0.0.217",6969)
 	#Check game outcome 
@@ -90,71 +92,16 @@ def send_gameover(ip,port):
 	sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 	sock.sendto(pickle.dumps(("gameover",None,None)),(ip,port))
 
-def train(model:networks.FullNet,n_samples,gen,bs=8,epochs=5,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
-	model 						= model.float()
-	root                        = DATASET_ROOT+f"\experiences\gen{gen}"
-	experiences                 = []
-
-	if not os.listdir(root):
-		print(f"No data to train on")
-		return
-
-
-	for game_i in range(500):
-		for local_iter in range(200):
-			try:
-				states                      = torch.load(f"{root}/game_{local_iter}-{game_i}_states").float().to(DEV)
-				pi                          = torch.load(f"{root}/game_{local_iter}-{game_i}_localpi").float().to(DEV)
-				results                     = torch.load(f"{root}/game_{local_iter}-{game_i}_results").float().to(DEV)
-				for i in range(len(states)):
-					experiences.append((states[i],pi[i],results[i]))
-			except FileNotFoundError:
-				pass 
-			
-
-
-	for epoch_i in range(epochs):
-		train_set                   = random.sample(experiences,min(n_samples,len(experiences)))
-
-		dataset                     = ChessDataset(train_set)
-		dataloader                  = DataLoader(dataset,batch_size=bs,shuffle=True)
-		
-		total_loss                  = 0 
-		
-		for batch_i,batch in enumerate(dataloader):
-			
-			#Zero Grad 
-			for p in model.parameters():
-				p.grad                      = None
-
-			#Get Data
-			states                      = batch[0].to(torch.device('cuda'))
-			pi                          = batch[1].to(torch.device('cuda'))
-			outcome                     = batch[2].to(torch.device('cuda'))
-			batch_len                   = len(states)
-
-			#Get model predicitons
-			pi_pred,v_pred              = model.forward(states)
-			#Calc model loss 
-			loss                        = torch.nn.functional.mse_loss(v_pred.view(-1),outcome,reduction='mean') + torch.nn.functional.cross_entropy(pi_pred,pi,)
-			total_loss                  += loss.mean().item()
-			loss.backward() 
-
-			#Backpropogate
-			model.optimizer.step()
-		
-		print(f"\t\tEpoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}")
-
-
 if __name__ == "__main__":
 
 
-	n_threads 			= 6
+	n_threads 			= 10
 	n_games 			= 64 
 	gen 				= 0 
 	offset 				= 1 
 
 	while True:
+
 		train_ids 	= [0+offset,2+offset,4+offset]
 		for train_id in train_ids:
 			print(f"\n\nTraining iter {gen}")
@@ -162,6 +109,6 @@ if __name__ == "__main__":
 
 			#play out games  
 			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",300,325,i,gen) for i in range(n_games)])
+				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",300,300,i,gen) for i in range(n_games)])
 			print(f"finished ")
 			
