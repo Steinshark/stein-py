@@ -316,8 +316,8 @@ class Chess(TwoPEnv):
 			return None 
 	
 
-	def get_uuid(self):
-		return self.board.fen()
+	def get_uuid(self): 
+		return self.board.fen().split(" -")[0]
 	
 	
 	def get_repr(self):

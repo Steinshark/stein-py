@@ -17,7 +17,9 @@ from torch.utils.data import DataLoader
 from sklearn.utils import extmath 
 from rlcopy import Node,Tree
 import games
-socket.setdefaulttimeout(2)
+#socket.setdefaulttimeout(2)
+
+from memory_profiler import profile
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
@@ -25,8 +27,9 @@ def softmax(x):
 			x = numpy.asarray([x],dtype=float)
 		return extmath.softmax(x)[0]
 
-
-def run_game(game:games.TwoPEnv,model:networks.FullNet or str,move_limit,search_depth,game_id,gen=999):
+@profile
+def run_game(args):
+	game,model,move_limit,search_depth,game_id,gen = args
 	
 	t0 						= time.time() 
 	game 					= game(max_moves=move_limit,gen=gen)
@@ -66,7 +69,7 @@ def run_game(game:games.TwoPEnv,model:networks.FullNet or str,move_limit,search_
 		except RecursionError:
 			pass
 	del mcts_tree
-	send_gameover("10.0.0.217",6969)
+	send_gameover("10.0.0.60",6969)
 	#Check game outcome 
 	if game.is_game_over() == 1:
 		state_outcome = torch.ones(len(state_repr),dtype=torch.int8)
@@ -82,9 +85,9 @@ def run_game(game:games.TwoPEnv,model:networks.FullNet or str,move_limit,search_
 	#Save tensors
 	if not os.path.isdir(DATASET_ROOT+f"/experiences/gen{gen}"):
 		os.mkdir(DATASET_ROOT+f"/experiences/gen{gen}")
-	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"/experiences/gen{gen}/game_{game_id}_states")
-	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"/experiences/gen{gen}/game_{game_id}_localpi")
-	torch.save(state_outcome.float(),DATASET_ROOT+f"/experiences/gen{gen}/game_{game_id}_results")
+	torch.save(torch.stack(state_repr),DATASET_ROOT+f"/experiences/gen{gen}/game_{game_id}_states")
+	torch.save(torch.stack(state_pi),DATASET_ROOT+f"/experiences/gen{gen}/game_{game_id}_localpi")
+	torch.save(state_outcome,DATASET_ROOT+f"/experiences/gen{gen}/game_{game_id}_results")
 
 	return game_id,time.time()-t0
 
@@ -95,20 +98,18 @@ def send_gameover(ip,port):
 if __name__ == "__main__":
 
 
-	n_threads 			= 10
-	n_games 			= 64 
+	n_threads 			= 4
+	n_games 			= 4 
 	gen 				= 0 
 	offset 				= 1 
 
 	while True:
 
-		train_ids 	= [0+offset,2+offset,4+offset]
-		for train_id in train_ids:
-			print(f"\n\nTraining iter {gen}")
-			time.sleep(.1)
+		print(f"\n\nTraining iter {gen}")
+		time.sleep(.1)
 
-			#play out games  
-			with multiprocessing.Pool(n_threads) as pool:
-				results 	= pool.starmap(run_game,[(games.Chess,"NETWORK",300,300,i,gen) for i in range(n_games)])
-			print(f"finished ")
+		#play out games  
+		with multiprocessing.Pool(n_threads,maxtasksperchild=1) as pool:
+			pool.map(run_game,[(games.Chess,"NETWORK",300,250,i,gen) for i in range(n_games)])
+
 			

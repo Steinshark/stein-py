@@ -31,7 +31,7 @@ class Color:
 
 class Server:
 
-	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.00004,start_gen=0):
+	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.00004,start_gen=0,timeout=.002):
 		self.queue          	= {} 
 		socket.setdefaulttimeout(socket_timeout)
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -43,6 +43,7 @@ class Server:
 		self.gen 				= 0 
 		self.train_tresh		= 32
 		self.new_gen_thresh		= 64
+		self.lookup_table 		= {} 
 
 		#GAME OPTIONS 
 		self.max_moves 			= max_moves
@@ -51,7 +52,7 @@ class Server:
 		#QUEUE OPTIONS 
 		self.queue_cap			= queue_cap
 		self.checked_updates	= 0
-		self.timeout			= .002
+		self.timeout			= .0002
 		self.original_queue_cap = queue_cap
 
 		#METRICS 
@@ -61,6 +62,7 @@ class Server:
 		self.generations 		= [] 
 		self.n_games_finished 	= 0 
 		self.n_moves 			= 0 
+		self.lookups 			= 0 
 
 		#TIME METRICS 
 		self.serve_times		= 0
@@ -96,8 +98,9 @@ class Server:
 				self.update_start	= time.time()
 				self.update()
 				self.display_upate()
-			except ConnectionResetError:
+			except ConnectionResetError as cre:
 				print(f"\t{Color.RED}Connection Reset - Idling 10s{Color.END}")
+				print(f"{Color.RED}{cre}{Color.END}\n")
 				time.sleep(10)
 				self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 				self.socket.bind((socket.gethostname(),6969))
@@ -126,9 +129,25 @@ class Server:
 				if not gen in self.generations:
 					self.generations.append(gen)
 
-				self.queue[addr]      	= repr 
-				iters 					+= 1
-				self.n_moves			+= 1 
+				#Check lookup table
+				obj_hash				= hash(str(repr))
+
+				if obj_hash in self.lookup_table:
+					stash					= self.lookup_table[obj_hash]
+					addr,prob,v 			= stash
+
+					sent 		= False 
+					while not sent:
+						try:
+							self.socket.sendto(prob,addr)
+							self.socket.sendto(v,addr)
+							sent 	= True
+						except TimeoutError:
+							pass
+				else:
+					self.queue[addr]      	= repr 
+					iters 					+= 1
+					self.n_moves			+= 1 
 				
 			#Idle 
 			except TimeoutError:
@@ -165,12 +184,15 @@ class Server:
 			v				= v.cpu().numpy()
 		self.compute_times 	+= time.time()-t_compute
 
-		#Pickle obkects
+		#Pickle objects
 		t_pickle 		= time.time()
-		for prob,score in zip(probs,v):
+		for prob,score,addr in zip(probs,v,self.queue.keys()):
 			pickled_prob    = pickle.dumps(prob)
 			pickled_v       = pickle.dumps(score)
 			returnables.append((pickled_prob,pickled_v))
+
+			#Add to lookup table
+			self.lookup_table[hash(str(self.queue[addr]))]	= (addr,pickled_prob,pickled_v)
 		self.pickle_times 	+= time.time()-t_pickle
 
 		#Return all computations
