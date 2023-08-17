@@ -19,7 +19,6 @@ from rlcopy import Node,Tree
 import games
 #socket.setdefaulttimeout(2)
 
-from memory_profiler import profile
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
@@ -27,7 +26,6 @@ def softmax(x):
 			x = numpy.asarray([x],dtype=float)
 		return extmath.softmax(x)[0]
 
-@profile
 def run_game(args):
 	game,model,move_limit,search_depth,game_id,gen = args
 	
