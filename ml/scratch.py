@@ -344,4 +344,4 @@ if __name__ == "__main__" and True:
 
 	from server_logistics import Server
 	s 	= Server(10,300,250,start_gen=0,socket_timeout=.0002/32,timeout=.0002)
-	s.run_server(5)
+	s.run_server(60)
