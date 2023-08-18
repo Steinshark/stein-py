@@ -521,7 +521,7 @@ class Server:
 		game_ids 	= set()
 		for file in os.listdir(root):
 			for letter in string.ascii_lowercase+string.ascii_uppercase+"_":
-				file.replace(letter,"")
+				file = file.replace(letter,"")
 			
 			game_ids.add(int(file))
 
