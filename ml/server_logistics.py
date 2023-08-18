@@ -238,7 +238,7 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel_muiltithread(self.get_generations(),25,10,20,self.cur_model,4)
+					self.duel_muiltithread(self.get_generations(),10,10,20,self.cur_model,4)
 					self.load_model(self.model,self.cur_model)
 
 			
