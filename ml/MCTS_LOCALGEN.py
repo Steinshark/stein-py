@@ -12,6 +12,8 @@ from sklearn.utils import extmath
 from rlcopy import Node,Tree
 import games
 import torch 
+import sys 
+
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
@@ -20,11 +22,11 @@ def softmax(x):
 		return extmath.softmax(x)[0]
 
 def run_game(args):
-	game,model,move_limit,search_depth,game_id,gen = args
+	game,model,move_limit,search_depth,game_id,gen,server_addr = args
 	
 	t0 						= time.time() 
 	game 					= game(max_moves=move_limit,gen=gen)
-	mcts_tree 				= Tree(game,model,game_id=game_id)
+	mcts_tree 				= Tree(game,model,game_id=game_id,server_addr=server_addr)
 	move_indices            = list(range(game.move_space))
 	state_repr              = [] 
 	state_pi                = [] 
@@ -61,7 +63,7 @@ def run_game(args):
 			pass
 
 	del mcts_tree
-	send_gameover("10.0.0.60",6969)
+	send_gameover(server_addr,6969)
 	#Check game outcome 
 	if game.is_game_over() == 1:
 		state_outcome = torch.ones(len(state_repr),dtype=torch.int8)
@@ -104,6 +106,12 @@ if __name__ == "__main__":
 	gen 				= 0 
 	offset 				= 1 
 
+	if not len(sys.argv) > 1:
+		print(f"specify server IP")
+		exit()
+
+	server_addr 		= sys.argv[1]
+
 	while True:
 
 		print(f"\n\nTraining iter {gen}")
@@ -111,6 +119,6 @@ if __name__ == "__main__":
 
 		#play out games  
 		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-			pool.map(run_game,[(games.Chess,"NETWORK",5,10,i,gen) for i in range(n_games)])
+			pool.map(run_game,[(games.Chess,"NETWORK",5,10,i+10000,gen,server_addr) for i in range(n_games)])
 
 			

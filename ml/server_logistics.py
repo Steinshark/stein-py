@@ -470,8 +470,19 @@ class Server:
 		return gens 
 
 
-	def save_model(self,model:networks.FullNet,gen=1):
+	def save_model(self,model:networks.FullNet,gen=1,count=1):
 		torch.save(model.state_dict(),self.DATASET_ROOT+f"\models\gen{gen}")
+
+		try:
+			state_dict 	 = torch.load(self.DATASET_ROOT+f"\models\gen{gen}")
+			model.load_state_dict(state_dict)
+		except RuntimeError as re:
+			if count > 5:
+				print(f"{Color.RED}\tFailed to save model: {gen}{Color.END}")
+			else:
+				time.sleep(.1)
+				self.save_model(model,gen,count+1)
+	
 
 
 	def load_model(self,model:networks.FullNet,gen=1,verbose=False):

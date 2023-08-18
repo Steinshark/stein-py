@@ -64,7 +64,7 @@ class Node:
 class Tree:
 
 	
-	def __init__(self,game_obj:games.TwoPEnv,model:torch.nn.Module or str,base_node=None,game_id=0,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+	def __init__(self,game_obj:games.TwoPEnv,model:torch.nn.Module or str,base_node=None,game_id=0,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),server_addr:str="10.0.0.217"):
 		
 		self.game_obj 		= game_obj 
 		self.model 			= model 
@@ -75,6 +75,7 @@ class Tree:
 
 		else:
 			self.mode 			= "Network" 
+			self.server_addr 	= server_addr
 			self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 
 		if base_node: 
@@ -132,7 +133,7 @@ class Tree:
 						prob,v 						= self.model.forward(node.game_obj.get_repr().unsqueeze_(0))
 						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
 				elif self.mode == "Network":
-					prob,v 							= self.SEND_EVAL_REQUEST()
+					prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr)
 					prob_cpu						= prob
 
 
@@ -165,7 +166,7 @@ class Tree:
 
 	#217 is downstairs
 	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.60"):
+	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217"):
 		
 		try:
 			self.sock.sendto(pickle.dumps(self.game_obj.build_as_network()),(hostname,port))
