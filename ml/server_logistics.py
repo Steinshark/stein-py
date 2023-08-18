@@ -12,6 +12,8 @@ import os
 from torch.utils.data import DataLoader
 from networks import ChessDataset
 import multiprocessing
+import string 
+
 def softmax(x):
 		if len(x.shape) < 2:
 			x = numpy.asarray([x],dtype=float)
@@ -516,7 +518,14 @@ class Server:
 
 
 		print(f"{Color.TAN}\t\tbegin Training:{Color.END}",end='')
-		for game_i in range(500):
+		game_ids 	= set()
+		for file in os.listdir(root):
+			for letter in string.ascii_lowercase+string.ascii_uppercase+["_"]:
+				file.replace(letter,"")
+			
+			game_ids.add(int(file))
+
+		for game_i in game_ids:
 			try:
 				states                      = torch.load(f"{root}/game_{game_i}_states").float().to(DEV)
 				pi                          = torch.load(f"{root}/game_{game_i}_localpi").float().to(DEV)
