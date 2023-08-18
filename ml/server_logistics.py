@@ -529,7 +529,7 @@ class Server:
 				pass
 
 		
-		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints{Color.END}")
+		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints{Color.END} in gen {gen}")
 
 		if len(experiences) == 0:
 			print(f"No data to train on")
