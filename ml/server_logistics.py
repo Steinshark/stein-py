@@ -238,7 +238,7 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel_muiltithread(self.get_generations(),25,300,self.cur_model,300)
+					self.duel_muiltithread(self.get_generations(),25,10,20,self.cur_model,4)
 					self.load_model(self.model,self.cur_model)
 
 			
@@ -392,7 +392,8 @@ class Server:
 		os.remove(self.DATASET_ROOT+f"\\models\\gen{worst_model}")
 		self.cur_model 	= best_model
 
-	def duel_muiltithread(self,available_models,n_games,search_depth,cur_model=0,max_moves=120,n_threads=4):
+
+	def duel_muiltithread(self,available_models,n_games,max_moves,search_depth,cur_model=0,n_threads=4):
 		print(f"\t{Color.TAN}DUELING{Color.END}")
 		best_model 				= cur_model
 		challenger_model		= cur_model
@@ -458,7 +459,6 @@ class Server:
 		print(f"\t{Color.RED}removing {worst_model}{Color.END}")
 		os.remove(self.DATASET_ROOT+f"\\models\\gen{worst_model}")
 		self.cur_model 	= best_model
-
 
 
 	def get_generations(self):
