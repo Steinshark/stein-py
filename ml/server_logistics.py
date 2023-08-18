@@ -520,7 +520,7 @@ class Server:
 		print(f"{Color.TAN}\t\tbegin Training:{Color.END}",end='')
 		game_ids 	= set()
 		for file in os.listdir(root):
-			for letter in string.ascii_lowercase+string.ascii_uppercase+["_"]:
+			for letter in string.ascii_lowercase+string.ascii_uppercase+"_":
 				file.replace(letter,"")
 			
 			game_ids.add(int(file))
