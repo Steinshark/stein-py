@@ -11,7 +11,7 @@ import multiprocessing
 from sklearn.utils import extmath 
 from rlcopy import Node,Tree
 import games
-
+import torch 
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
@@ -64,16 +64,16 @@ def run_game(args):
 	send_gameover("10.0.0.60",6969)
 	#Check game outcome 
 	if game.is_game_over() == 1:
-		state_outcome = numpy.ones(len(state_repr),dtype=torch.int8)
+		state_outcome = torch.ones(len(state_repr),dtype=torch.int8)
 	elif game.is_game_over() == -1:
-		state_outcome = numpy.ones(len(state_repr),dtype=torch.int8) * -1 
+		state_outcome = torch.ones(len(state_repr),dtype=torch.int8) * -1 
 	else:
-		state_outcome = numpy.zeros(len(state_repr),dtype=torch.int8)
+		state_outcome = torch.zeros(len(state_repr),dtype=torch.int8)
 	
+	state_pi		= [torch.tensor(pi,dtype=torch.float16) for pi in state_pi]
 	print(f"\tgame no. {game_id}\t== {game.get_result()}\tafter\t{game.move} moves in {(time.time()-t0):.2f}s\t {(time.time()-t0)/game.move:.2f}s/move")
 	#print(game_board)
 	
-	state_pi		= numpy.asarray(state_pi)
 	#Save tensors
 	if not os.path.isdir(DATASET_ROOT+f"/experiences/gen{gen}"):
 		os.mkdir(DATASET_ROOT+f"/experiences/gen{gen}")
@@ -99,7 +99,7 @@ def send_gameover(ip,port):
 if __name__ == "__main__":
 	
 
-	n_threads 			= 8
+	n_threads 			= 4
 	n_games 			= 64 
 	gen 				= 0 
 	offset 				= 1 

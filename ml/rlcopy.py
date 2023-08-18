@@ -72,6 +72,7 @@ class Tree:
 		self.uid 			= game_id
 		if isinstance(self.model,torch.nn.Module):
 			self.mode 			= "Manual"
+
 		else:
 			self.mode 			= "Network" 
 			self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -155,7 +156,9 @@ class Tree:
 				identical_node.bubble_up(v)				
 
 		del self.nodes
-self.sock.close()
+
+		if self.mode == "Network": 
+			self.sock.close()
 
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
