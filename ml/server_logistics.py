@@ -11,7 +11,7 @@ import random
 import os 
 from torch.utils.data import DataLoader
 from networks import ChessDataset
-
+import multiprocessing
 def softmax(x):
 		if len(x.shape) < 2:
 			x = numpy.asarray([x],dtype=float)
@@ -238,7 +238,7 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel(self.get_generations(),25,300,self.cur_model,300)
+					self.duel_muiltithread(self.get_generations(),25,300,self.cur_model,300)
 					self.load_model(self.model,self.cur_model)
 
 			
@@ -391,6 +391,74 @@ class Server:
 		print(f"\t{Color.RED}removing {worst_model}{Color.END}")
 		os.remove(self.DATASET_ROOT+f"\\models\\gen{worst_model}")
 		self.cur_model 	= best_model
+
+	def duel_muiltithread(self,available_models,n_games,search_depth,cur_model=0,max_moves=120,n_threads=4):
+		print(f"\t{Color.TAN}DUELING{Color.END}")
+		best_model 				= cur_model
+		challenger_model		= cur_model
+
+		#Pick a random, past model
+		while challenger_model == cur_model:
+			challenger_model 		= random.choice(available_models)  	
+		worst_model					= challenger_model
+
+		print(F"\t{Color.TAN}Cur Best {cur_model} vs. Model {challenger_model}")
+
+		#Load models 
+		cur_model_net 			= networks.ChessSmall()
+		challenger_model_net 	= networks.ChessSmall()
+		self.load_model(cur_model_net,gen=cur_model,verbose=True)
+		self.load_model(challenger_model_net,gen=challenger_model,verbose=True) 
+		cur_model_net.eval()
+		challenger_model_net.eval()
+
+		#Keep track of how each model does
+		current_best_games 		= 0
+		challenger_games 		= 0 
+		tiegames    			= 0
+
+		#Play cur_model_net as White
+		args 		= [(cur_model_net,challenger_model_net,search_depth,max_moves) for _ in range(n_games)]
+		with multiprocessing.Pool(n_threads) as pool:
+			results 	= pool.starmap(self.play_models,args)
+
+		for result in results:
+			if result == 1:
+				current_best_games += 1 
+			elif result == -1:
+				challenger_games += 1
+			elif result == 0:
+				tiegames += 1
+
+		#Play challenger_model_net as White
+		args 		= [(challenger_model_net,cur_model_net,search_depth,max_moves) for _ in range(n_games)]
+		with multiprocessing.Pool(n_threads) as pool:
+			results 	= pool.starmap(self.play_models,args)
+		for result in results:
+			if result == 1:
+				challenger_games += 1 
+			elif result == -1:
+				current_best_games += 1
+			elif result == 0:
+				tiegames += 1
+		
+		challenger_ratio 	= ((challenger_games) / (current_best_games+challenger_games+.01))
+
+		if challenger_ratio >= .55:
+			best_model 			= challenger_model
+			worst_model			= cur_model
+
+		
+
+
+		print(f"\t{Color.GREEN}Cur model{cur_model}: {current_best_games}\tChallenger model{challenger_model}: {challenger_games}\ttie: {tiegames}\n")
+
+		#Delete worst model 
+		print(f"\t{Color.GREEN}best model is {best_model}{Color.END}")
+		print(f"\t{Color.RED}removing {worst_model}{Color.END}")
+		os.remove(self.DATASET_ROOT+f"\\models\\gen{worst_model}")
+		self.cur_model 	= best_model
+
 
 
 	def get_generations(self):
