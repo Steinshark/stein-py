@@ -179,7 +179,7 @@ class Tree:
 			return prob,v
 		except TimeoutError:
 			time.sleep(.2)
-			print(f"timeout")
+			#print(f"timeout")
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 		except OSError as ose:
 			print(f"os err\n{ose}")
