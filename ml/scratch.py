@@ -343,5 +343,5 @@ if __name__ == "__main__" and False:
 if __name__ == "__main__" and True:
 
 	from server_logistics import Server
-	s 	= Server(10,300,250,start_gen=0,socket_timeout=.0002,timeout=.002)
-	s.run_server(5)
+	s 	= Server(20,300,250,start_gen=0,socket_timeout=.0001,timeout=.002,server_ip="10.0.0.217")
+	s.run_server(30)

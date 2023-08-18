@@ -35,11 +35,9 @@ def run_game(args):
 	while game.get_result() is None:
 		try:
 			#Build a local policy 
-			print(f"start move")
 			t1 = time.time()
 			local_policy 		= mcts_tree.update_tree(iters=search_depth)
 			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
-			print(f"made move")
 			#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 			for key,prob in zip(local_policy.keys(),local_softmax):
 				local_policy[key] = prob
@@ -124,7 +122,7 @@ if __name__ == "__main__":
 	t0 = time.time()
 	#play out games  
 	with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-		pool.map(run_game,[(games.Chess,"Network",20,225,i+10000,gen,server_addr) for i in range(n_games)])
+		pool.map(run_game,[(games.Chess,"Network",300,225,i+10000,gen,server_addr) for i in range(n_games)])
 	
 	print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 	#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
