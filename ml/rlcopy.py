@@ -154,7 +154,8 @@ class Tree:
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
 
-		del self.nodes 
+		del self.nodes
+self.sock.close()
 
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
