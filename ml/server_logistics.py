@@ -527,7 +527,13 @@ class Server:
 				pass 
 			except RuntimeError:
 				pass
+
+		
 		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints{Color.END}")
+
+		if len(experiences) == 0:
+			print(f"No data to train on")
+			return
 		
 
 		for epoch_i in range(epochs):
