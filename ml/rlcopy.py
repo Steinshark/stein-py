@@ -16,6 +16,7 @@ import games
 import pickle
 import copy
 import socket
+
 def softmax(x):
 	if len(x.shape) < 2:
 		x = numpy.asarray([x],dtype=float)
@@ -160,7 +161,7 @@ class Tree:
 
 	#217 is downstairs
 	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217"):
+	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.60"):
 		
 		try:
 			self.sock.sendto(pickle.dumps(self.game_obj.build_as_network()),(hostname,port))
@@ -173,8 +174,11 @@ class Tree:
 			return prob,v
 		except TimeoutError:
 			time.sleep(3)
+			print(f"timeout")
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 		except OSError as ose:
+			print(f"os err\n{ose}")
+			time.sleep(2)
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 
 

@@ -118,37 +118,38 @@ class Server:
 
 			#Listen for a connection
 			try:
-				repr,addr            	= self.socket.recvfrom(1024)
+				repr,addr            	= self.socket.recvfrom(2048)
 				repr,game_id,gen        = pickle.loads(repr) 
 
 				#Check for gameover notification 
 				if isinstance(repr,str) and repr 	== "gameover":
 					self.n_games_finished += 1
-					continue 
-			
-				if not gen in self.generations:
-					self.generations.append(gen)
-
-				#Check lookup table
-				obj_hash				= hash(str(repr))
-
-				if obj_hash in self.lookup_table:
-					stash					= self.lookup_table[obj_hash]
-					addr,prob,v 			= stash
-
-					sent 		= False 
-					while not sent:
-						try:
-							self.socket.sendto(prob,addr)
-							self.socket.sendto(v,addr)
-							sent 	= True
-						except TimeoutError:
-							pass
-				else:
-					self.queue[addr]      	= repr 
-					iters 					+= 1
-					self.n_moves			+= 1 
 				
+				else:
+					if not gen in self.generations:
+						self.generations.append(gen)
+
+					#Check lookup table
+					obj_hash				= hash(str(repr))
+
+					if obj_hash in self.lookup_table and False:
+						stash					= self.lookup_table[obj_hash]
+						addr,prob,v 			= stash
+
+						sent 		= False 
+						while not sent:
+							try:
+								self.socket.sendto(prob,addr)
+								self.socket.sendto(v,addr)
+								sent 	= True
+							except TimeoutError:
+								pass
+						print(f"used table lookup")
+					else:
+						self.queue[addr]      	= repr 
+						iters 					+= 1
+						self.n_moves			+= 1 
+					
 			#Idle 
 			except TimeoutError:
 				t1 						= time.time()
