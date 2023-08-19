@@ -270,8 +270,8 @@ class Server:
 			#Add timeup 
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
-			percent_served	= str(percent_served).ljust(8)
-			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served:.2f}%{Color.TAN}\tMax:{self.queue_cap}"
+			percent_served	= f"{percent_served:.2f}".ljust(6)
+			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served}%{Color.TAN}\tMax:{self.queue_cap}"
 			#Add process time
 			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\tGames:{self.n_games_finished}{Color.END}"
 			
