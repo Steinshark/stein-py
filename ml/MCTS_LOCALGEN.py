@@ -9,7 +9,6 @@ from sklearn.utils import extmath
 from rlcopy import Node,Tree
 import games
 import sys 
-from memory_profiler import profile 
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
@@ -17,7 +16,6 @@ def softmax(x):
 			x = numpy.asarray([x],dtype=float)
 		return extmath.softmax(x)[0]
 
-@profile
 def run_game(args):
 	game_fn,model,move_limit,search_depth,game_id,gen,server_addr = args
 	
@@ -103,11 +101,11 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__" and True:
 	
 
-	n_threads 			= 6
-	n_games 			= 16 
+	n_threads 			= 16
+	n_games 			= 64 
 	gen 				= 0 
 	offset 				= 1 
 
@@ -124,13 +122,13 @@ if __name__ == "__main__" and False:
 	t0 = time.time()
 	#play out games  
 	with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-		pool.map(run_game,[(games.Chess,"Network",300,225,i+20000,gen,server_addr) for i in range(n_games)])
+		pool.map(run_game,[(games.Chess,"Network",300,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
 	
 	print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 	#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 	#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 
 
 
