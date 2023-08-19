@@ -320,8 +320,12 @@ class Chess(TwoPEnv):
 		return self.board.fen().split(" -")[0]
 	
 	
-	def get_repr(self):
-		return torch.tensor(self.tensorizing(self.board.fen())).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+	def get_repr(self,numpy=False):
+		np_repr 	= self.tensorizing(self.board.fen())
+		if numpy:
+			return np_repr
+		else:
+			return torch.tensor(np_repr).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
 
 	def get_result(self):

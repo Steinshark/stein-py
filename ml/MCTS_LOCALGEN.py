@@ -4,15 +4,12 @@ import os
 import socket 
 import numpy 
 import pickle 
-import torch 
 import multiprocessing 
 from sklearn.utils import extmath 
 from rlcopy import Node,Tree
 import games
-import torch 
 import sys 
-import networks 
-
+from memory_profiler import profile 
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 def softmax(x):
@@ -20,11 +17,12 @@ def softmax(x):
 			x = numpy.asarray([x],dtype=float)
 		return extmath.softmax(x)[0]
 
+@profile
 def run_game(args):
-	game,model,move_limit,search_depth,game_id,gen,server_addr = args
+	game_fn,model,move_limit,search_depth,game_id,gen,server_addr = args
 	
 	t0 						= time.time() 
-	game:games.TwoPEnv 		= game(max_moves=move_limit,gen=gen)
+	game:games.TwoPEnv 		= game_fn(max_moves=move_limit,gen=gen)
 	mcts_tree 				= Tree(game,model,game_id=game_id,server_addr=server_addr)
 	move_indices            = list(range(game.move_space))
 	state_repr              = [] 
@@ -51,7 +49,7 @@ def run_game(args):
 			next_move             = random.choices(move_indices,weights=pi,k=1)[0]
 
 			#Add experiences to set 
-			state_repr.append(game.get_repr())
+			state_repr.append(game.get_repr(numpy=True))
 			state_pi.append(pi)
 			game.make_move(next_move)
 
@@ -67,15 +65,15 @@ def run_game(args):
 	
 	if isinstance(model,str):
 		send_gameover(server_addr,6969)
+
 	#Check game outcome 
 	if game.is_game_over() == 1:
-		state_outcome = torch.ones(len(state_repr),dtype=torch.int8)
+		state_outcome = numpy.ones(len(state_repr),dtype=numpy.int8)
 	elif game.is_game_over() == -1:
-		state_outcome = torch.ones(len(state_repr),dtype=torch.int8) * -1 
+		state_outcome = numpy.ones(len(state_repr),dtype=numpy.int8) * -1 
 	else:
-		state_outcome = torch.zeros(len(state_repr),dtype=torch.int8)
+		state_outcome = numpy.zeros(len(state_repr),dtype=numpy.int8)
 	
-	state_pi		= [torch.tensor(pi,dtype=torch.float16) for pi in state_pi]
 	print(f"\tgame no. {game_id}\t== {game.get_result()}\tafter\t{game.move} moves in {(time.time()-t0):.2f}s\t {(time.time()-t0)/game.move:.2f}s/move")
 	#print(game_board)
 	
@@ -84,9 +82,13 @@ def run_game(args):
 		os.mkdir(DATASET_ROOT+f"/experiences/gen{gen}")
 
 	#Save tensors
-	torch.save(torch.stack(state_repr).float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_states")
-	torch.save(torch.stack(state_pi).float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_localpi")
-	torch.save(state_outcome.float(),DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_results")
+	
+	state_repr 				= numpy.stack(state_repr)
+	state_pi 				= numpy.stack(state_pi) 
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_localpi",state_pi.as_type(numpy.float16))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_states",state_repr.as_type(numpy.float16))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_results",state_outcome.as_type(numpy.float16))
+
 
 	return game_id,time.time()-t0
 
@@ -101,10 +103,10 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and False:
 	
 
-	n_threads 			= 4
+	n_threads 			= 6
 	n_games 			= 16 
 	gen 				= 0 
 	offset 				= 1 
@@ -122,10 +124,30 @@ if __name__ == "__main__":
 	t0 = time.time()
 	#play out games  
 	with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-		pool.map(run_game,[(games.Chess,"Network",300,225,i+10000,gen,server_addr) for i in range(n_games)])
+		pool.map(run_game,[(games.Chess,"Network",300,225,i+20000,gen,server_addr) for i in range(n_games)])
 	
 	print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 	#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 	#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-		
+if __name__ == "__main__" and True:
+
+
+
+	if not len(sys.argv) > 1:
+		print(f"specify server IP")
+		exit()
+	if not len(sys.argv) > 2:
+		print(f"specify offset")
+		exit()
+
+	server_addr 		= sys.argv[1]
+	offset 				= int(sys.argv[2])
+
+	iter 				= 0  
+	#play out games  
+	while True:
+		print(f"\n\nTraining iter {iter}")
+		for i in range(64):
+			run_game((games.Chess,"Network",5,100,i+(10000*offset),0,server_addr))
+		iter += 1
