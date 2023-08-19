@@ -256,7 +256,7 @@ class Server:
 		if cur_time > self.next_update_time:
 
 			#Get numbers over last chunk 
-			percent_served 			= round(100*(sum(self.chunk_fills) / (sum(self.chunk_maxs)+.001)))
+			percent_served 			= 100*(sum(self.chunk_fills) / (sum(self.chunk_maxs)+.001))
 
 			if percent_served < 50:
 				color 					= Color.RED 
@@ -271,7 +271,7 @@ class Server:
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
 			percent_served	= str(percent_served).ljust(8)
-			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served}%{Color.TAN}\tMax:{self.queue_cap}"
+			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served:.2f}%{Color.TAN}\tMax:{self.queue_cap}"
 			#Add process time
 			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\tGames:{self.n_games_finished}{Color.END}"
 			
@@ -528,9 +528,9 @@ class Server:
 
 		for game_i in game_ids:
 			try:
-				states                      = torch.load(f"{root}/game_{game_i}_states").float().to(DEV)
-				pi                          = torch.load(f"{root}/game_{game_i}_localpi").float().to(DEV)
-				results                     = torch.load(f"{root}/game_{game_i}_results").float().to(DEV)
+				states                      = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_states.npy")).to(DEV)
+				pi                          = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_localpi.npy")).to(DEV)
+				results                     = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_results.npy")).to(DEV)
 				for i in range(len(states)):
 					experiences.append((states[i],pi[i],results[i]))
 			except FileNotFoundError:
