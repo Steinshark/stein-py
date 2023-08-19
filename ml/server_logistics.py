@@ -121,7 +121,7 @@ class Server:
 
 			#Listen for a connection
 			try:
-				repr,addr            	= self.socket.recvfrom(2048)
+				repr,addr            	= self.socket.recvfrom(1024)
 				repr,game_id,gen        = pickle.loads(repr) 
 
 				#Check for gameover notification 
@@ -219,11 +219,11 @@ class Server:
 	
 	def update(self):
 		
-		if len(self.sessions[-1000:]) == 1000 and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
+		if self.checked_updates % 1000 == 0 and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
 			self.queue_cap	= max(self.sessions[-1000:])
 		
 		#add every 20 
-		if self.checked_updates % 5 == 0 and self.queue_cap < self.original_queue_cap:
+		if self.checked_updates % 2000 == 0 and self.queue_cap < self.original_queue_cap:
 			self.queue_cap 			+= 1
 		
 		#Check for train 
@@ -241,10 +241,12 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel_muiltithread(self.get_generations(),10,10,20,self.cur_model,4)
+					self.duel_muiltithread(self.get_generations(),25,250,225,self.cur_model,4)
 					self.load_model(self.model,self.cur_model)
 
-			
+		self.checked_updates += 1 
+
+
 	def display_upate(self,update_every=10):
 
 		if not self.started:
@@ -487,7 +489,6 @@ class Server:
 				self.save_model(model,gen,count+1)
 	
 
-
 	def load_model(self,model:networks.FullNet,gen=1,verbose=False):
 		while True:
 			try:
@@ -521,16 +522,16 @@ class Server:
 		print(f"{Color.TAN}\t\tbegin Training:{Color.END}",end='')
 		game_ids 	= set()
 		for file in os.listdir(root):
-			for letter in string.ascii_lowercase+string.ascii_uppercase+"_":
+			for letter in string.ascii_lowercase+string.ascii_uppercase+"_.":
 				file = file.replace(letter,"")
 			
 			game_ids.add(int(file))
 
 		for game_i in game_ids:
 			try:
-				states                      = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_states.npy")).to(DEV)
-				pi                          = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_localpi.npy")).to(DEV)
-				results                     = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_results.npy")).to(DEV)
+				states                      = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_states.npy")).to(DEV).type(torch.float)
+				pi                          = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_localpi.npy")).to(DEV).type(torch.float)
+				results                     = torch.from_numpy(numpy.load(f"{root}/game_{game_i}_results.npy")).to(DEV).type(torch.float)
 				for i in range(len(states)):
 					experiences.append((states[i],pi[i],results[i]))
 			except FileNotFoundError:

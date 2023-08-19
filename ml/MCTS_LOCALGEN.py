@@ -83,9 +83,9 @@ def run_game(args):
 	
 	state_repr 				= numpy.stack(state_repr)
 	state_pi 				= numpy.stack(state_pi) 
-	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_localpi",state_pi.as_type(numpy.float16))
-	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_states",state_repr.as_type(numpy.float16))
-	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_results",state_outcome.as_type(numpy.float16))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_localpi",state_pi.astype(numpy.float16))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_states",state_repr.astype(numpy.float16))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_results",state_outcome.astype(numpy.float16))
 
 
 	return game_id,time.time()-t0
@@ -104,7 +104,7 @@ def send_gameover(ip,port):
 if __name__ == "__main__" and True:
 	
 
-	n_threads 			= 16
+	n_threads 			= 32
 	n_games 			= 64 
 	gen 				= 0 
 	offset 				= 1 
@@ -116,17 +116,17 @@ if __name__ == "__main__" and True:
 	server_addr 		= sys.argv[1]
 
 	#while True:
-
-	print(f"\n\nTraining iter {gen}")
-	time.sleep(.1)
-	t0 = time.time()
-	#play out games  
-	with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-		pool.map(run_game,[(games.Chess,"Network",300,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
-	
-	print(f"ran {n_games} in {(time.time()-t0):.2f}s")
-	#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
-	#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
+	while True:
+		print(f"\n\nTraining iter {gen}")
+		time.sleep(.1)
+		t0 = time.time()
+		#play out games  
+		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
+			pool.map(run_game,[(games.Chess,"Network",250,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
+		
+		print(f"ran {n_games} in {(time.time()-t0):.2f}s")
+		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
+		#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
 if __name__ == "__main__" and False:
 
