@@ -1,7 +1,5 @@
 import random 
 import time 
-from math import sqrt
-from numpy.random import default_rng
 import os 
 import socket 
 import numpy 
@@ -13,6 +11,7 @@ from rlcopy import Node,Tree
 import games
 import torch 
 import sys 
+import networks 
 
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
@@ -25,19 +24,23 @@ def run_game(args):
 	game,model,move_limit,search_depth,game_id,gen,server_addr = args
 	
 	t0 						= time.time() 
-	game 					= game(max_moves=move_limit,gen=gen)
+	game:games.TwoPEnv 		= game(max_moves=move_limit,gen=gen)
 	mcts_tree 				= Tree(game,model,game_id=game_id,server_addr=server_addr)
 	move_indices            = list(range(game.move_space))
 	state_repr              = [] 
 	state_pi                = [] 
 	state_outcome           = [] 
 
+
 	while game.get_result() is None:
 		try:
 			#Build a local policy 
+			print(f"start move")
+			t1 = time.time()
 			local_policy 		= mcts_tree.update_tree(iters=search_depth)
 			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
-
+			print(f"made move")
+			#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 			for key,prob in zip(local_policy.keys(),local_softmax):
 				local_policy[key] = prob
 
@@ -57,13 +60,15 @@ def run_game(args):
 			#Update MCTS tree 
 			del mcts_tree
 			mcts_tree					= Tree(game,model,game_id=game_id)
-
+			
 			game.is_game_over()
 		except RecursionError:
 			pass
 
 	del mcts_tree
-	send_gameover(server_addr,6969)
+	
+	if isinstance(model,str):
+		send_gameover(server_addr,6969)
 	#Check game outcome 
 	if game.is_game_over() == 1:
 		state_outcome = torch.ones(len(state_repr),dtype=torch.int8)
@@ -102,7 +107,7 @@ if __name__ == "__main__":
 	
 
 	n_threads 			= 4
-	n_games 			= 64 
+	n_games 			= 16 
 	gen 				= 0 
 	offset 				= 1 
 
@@ -112,13 +117,17 @@ if __name__ == "__main__":
 
 	server_addr 		= sys.argv[1]
 
-	while True:
+	#while True:
 
-		print(f"\n\nTraining iter {gen}")
-		time.sleep(.1)
+	print(f"\n\nTraining iter {gen}")
+	time.sleep(.1)
+	t0 = time.time()
+	#play out games  
+	with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
+		pool.map(run_game,[(games.Chess,"Network",20,225,i+10000,gen,server_addr) for i in range(n_games)])
+	
+	print(f"ran {n_games} in {(time.time()-t0):.2f}s")
+	#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
+	#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-		#play out games  
-		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-			pool.map(run_game,[(games.Chess,"NETWORK",5,10,i+10000,gen,server_addr) for i in range(n_games)])
-
-			
+		

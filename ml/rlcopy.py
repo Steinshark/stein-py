@@ -27,7 +27,7 @@ sys.path.append("C:/gitrepos/steinpy/ml")
 class Node:
 
 
-	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=1,move=None,uuid=""):
+	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=20,move=None,uuid=""):
 
 		self.game_obj 		= game_obj 
 		self.parent 		= parent 
@@ -70,6 +70,7 @@ class Tree:
 		self.model 			= model 
 		self.device	 		= device
 		self.uid 			= game_id
+
 		if isinstance(self.model,torch.nn.Module):
 			self.mode 			= "Manual"
 
@@ -77,6 +78,7 @@ class Tree:
 			self.mode 			= "Network" 
 			self.server_addr 	= server_addr
 			self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+			self.sock.settimeout(1)
 
 		if base_node: 
 			self.root 			= base_node
@@ -123,22 +125,21 @@ class Tree:
 					v = 1 
 				else:
 					v = -1 
+					
 			
 			#expand 
 			else:
-
 				if self.mode == "Manual":
 						
 					with torch.no_grad():
 						prob,v 						= self.model.forward(node.game_obj.get_repr().unsqueeze_(0))
 						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
+
 				elif self.mode == "Network":
 					prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr)
 					prob_cpu						= prob
 
-
 				legal_moves 				= node.game_obj.get_legal_moves()
-				
 				legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
 				legal_probs					= softmax_fn(legal_probs*x + noise)
@@ -150,8 +151,7 @@ class Tree:
 					node.children[move].move 	= move	
 
 
-			if isinstance(v,torch.Tensor):
-				v = v.item()
+			v = float(v)
 
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
@@ -178,7 +178,7 @@ class Tree:
 			v 					= pickle.loads(v)	
 			return prob,v
 		except TimeoutError:
-			time.sleep(3)
+			time.sleep(.2)
 			print(f"timeout")
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
 		except OSError as ose:
@@ -189,6 +189,7 @@ class Tree:
 
 	def get_best_node_max(self,node:Node):
 		while node.children:
+				
 				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
 				node 				= best_node
 
