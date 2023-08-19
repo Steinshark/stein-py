@@ -33,11 +33,11 @@ class Color:
 
 class Server:
 
-	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0004,start_gen=0,timeout=.002,server_ip="10.0.0.60"):
+	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.00004,start_gen=0,timeout=.002):
 		self.queue          	= {} 
+		socket.setdefaulttimeout(socket_timeout)
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-		self.socket.bind((server_ip,6969))
-		self.socket.settimeout(socket_timeout)
+		self.socket.bind((socket.gethostname(),6969))
 
 		self.model 				= networks.ChessSmall()
 		
@@ -87,6 +87,7 @@ class Server:
 		self.update_freq		= update_every
 		self.chunk_fills 		= [] 
 		self.chunk_maxs			= [] 
+		self.accepting_TCPS     = [] 
 
 		self.load_model(self.model,5)
 
@@ -195,21 +196,21 @@ class Server:
 			pickled_v       = pickle.dumps(score)
 			returnables.append((pickled_prob,pickled_v))
 
+			#Add to lookup table
+			self.lookup_table[hash(str(self.queue[addr]))]	= (addr,pickled_prob,pickled_v)
 		self.pickle_times 	+= time.time()-t_pickle
 
 		#Return all computations
 		t_send 			= time.time()
 		for addr,returnable in zip(self.queue,returnables):
-			prob,v     	= returnable
+			prob,v     = returnable
 			sent 		= False 
-			attempts 	= 0  
-			while not sent and attempts < 25:
+			while not sent:
 				try:
 					self.socket.sendto(prob,addr)
 					self.socket.sendto(v,addr)
 					sent 	= True
 				except TimeoutError:
-					attempts += 1 
 					pass
 
 		self.serve_times += time.time()-t_send
