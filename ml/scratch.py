@@ -1,4 +1,3 @@
-from rlcopy import Node,Tree
 import games 
 import time 
 from sklearn.utils import extmath 
@@ -11,6 +10,10 @@ import os
 
 import networks
 from torch.utils.data import DataLoader
+from rl import Tree, pre_network_call,post_network_call
+import multiprocessing
+import sys 
+sys.setrecursionlimit(3000)
 
 class Color:
 	HEADER = '\033[95m'
@@ -307,41 +310,104 @@ def get_generations():
 
 
 
+def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 
-if __name__ == "__main__" and False:
+	model 					= networks.ChessSmall()
 
-	train_rotations 		 = 5
-	search_depth 			 = 1000
-	best_gen 				 = 0
-	
-	train_model 			= networks.ChessSmall(optimizer_kwargs={'lr':.0005,"weight_decay":.00005},n_ch=6)
-	load_model(train_model,0)
+	active_games 			= [games.Chess(max_moves,id=_) for _ in range(n_threads)]
+	active_trees 			= [Tree(chess_game,search_depth=search_depth) for chess_game in active_games]
+	active_experiences 		= [{"reprs":[],"pis":[],"values":[]} for _ in range(n_threads)]
+	move_indices 			= list(range(active_games[0].move_space))
+
+	started_games 			= n_threads-1
+
+	#For infinity 
+	while True:
 
 
-	for generation in range(200):
-		best_gen			= generation
-		print(f"{Color.TAN}GENERATION {generation}{Color.END}")
+		#Conduct MCTS
+		t0 = time.time()
+		while False in [active_trees[i].search_complete for i in range(len(active_trees))]:
 
-		for round in range(train_rotations): 
-			n_games 		= random.randint(4,16)
-			run_train_iteration(games.Chess,train_model,300,100,round,n_games,generation)
-			#load_model(base_model,gen=generation,verbose=False)
-			train(train_model,n_samples=2048,gen=generation,bs=64,epochs=2)
-			save_model(train_model,gen=generation,verbose=False)
+			#Call all trees to prep for model eval 
+			[active_trees[i].pre_network_call() for i in range(len(active_trees))]
+
+			#Run node reprs through model 
+			reprs 					= [active_games[i].get_repr() for i in range(len(active_games)) ]
+			tensors 				= torch.stack(reprs)
+			probs,values 			= model.forward(tensors)
+			probs 					= probs.detach()
+			values 					= values.detach()
+
+			#Call all trees to use model eval 
+			[active_trees[i].post_network_call(probs[i],values[i]) for i in range(len(active_trees))] 
 		
-		if generation >=	 3:
-			best_gen 			= duel(get_generations(),50,search_depth=search_depth,cur_model=best_gen,max_moves=120)
-			load_model(train_model,gen=best_gen)
+		
+		#Get all local policies 
+		local_policies 		= [active_trees[i].get_policy() for i in range(len(active_trees))]
+		local_softmaxs 		= [softmax(numpy.asarray(list(local_policies[i].values()),dtype=float)) for i in range(len(local_policies))]
 
-if __name__ == "__main__" and False:
-	model 	= networks.ChessSmall(device=torch.device('cuda'))
-	model.eval()
-	model 			= torch.jit.trace(model,[torch.randn((1,6,8,8)).to("cuda")])
-	model 			= torch.jit.freeze(model)
-	run_game(games.Chess,model,1000,5,-1,0)
+		print(f"{local_policies[0]}\t-{sum(local_policies[0].values())}")
+		#Place all legal policy moves in 
+		for i in range(len(local_softmaxs)):
+			for key,prob in zip(local_policies[i].keys(),local_softmaxs[i]):
+				local_policies[i][key] = prob
+		
+		#Construct trainable policy 
+		pis 				= numpy.zeros((len(active_trees),active_games[0].move_space))
+		for i in range(len(active_games)):
+			for move_i,prob in local_policies[i].items():
+				pis[i,move_i]    = prob 
+		
+		#Sample moves from policies 
+		next_moves 			= [random.choices(move_indices,pis[i])[0] for i in range(len(active_games))]
 
-if __name__ == "__main__" and True:
+		#Save and make moves 
+		for i in range(len(active_games)):
+			active_experiences[i]['reprs'].append(active_games[i].get_repr(numpy=True))
+			active_experiences[i]['pis'].append(pis[i])
+			active_games[i].make_move(next_moves[i])
+		
+		#Check for games over 
+		for i in range(len(active_games)):
+			active_games[i].is_game_over()
 
-	from server_logistics import Server
-	s 	= Server(20,300,250,start_gen=0,socket_timeout=.00001,timeout=.004,server_ip="10.0.0.217")
-	s.run_server(5)
+			#if game over, save data 
+			if not active_games[i].get_result() is None:
+				active_experiences[i]['outcome']	= numpy.ones(len(active_experiences[i]["reprs"]),dtype=numpy.int8) * active_games[i].get_result()
+				print(f"\tgame no. {active_games[i].id}\t== {active_games[i].get_result()}\tafter\t{active_games[i].move} moves in {(time.time()-active_games[i].start_time):.2f}s\t {(time.time()-active_games[i].start_time)/active_games[i].move:.2f}s/move")
+				numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{active_games[i].id}_localpi",numpy.asarray(active_experiences[i]['pis'],dtype=float))
+				numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{active_games[i].id}_states",numpy.asarray(active_experiences[i]['reprs'],dtype=float))
+				numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{active_games[i].id}_results",numpy.asarray(active_experiences[i]['outcome'],dtype=float))
+				
+				#Replace 
+				started_games 			+= 1
+				active_games[i] 		= games.Chess(max_moves,id=started_games)
+				active_trees[i] 		= Tree(active_games[i])
+				active_experiences[i] 	= {"reprs":[],"pis":[],"values":[]}
+			
+			#if no game over update the tree
+			else:
+				active_trees[i]			= Tree(active_games[i],base_node=active_trees[i].root.children[next_moves[i]],search_depth=search_depth)
+		
+		
+		print(f"calculated {n_threads} moves in {(time.time()-t0):.4f}s\n{[active_games[i].get_result() for i in range(len(active_games))]}\n\n")
+
+										
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+if __name__ == "__main__":
+	play_games_simul(n_threads=8,max_moves=5,search_depth=225)
+

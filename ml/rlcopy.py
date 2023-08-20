@@ -70,6 +70,8 @@ class Tree:
 		self.model 			= model 
 		self.device	 		= device
 		self.uid 			= game_id
+		self.depth			= 0 
+		search_complete		= False 	
 
 		if isinstance(self.model,torch.nn.Module):
 			self.mode 			= "Manual"
@@ -86,7 +88,6 @@ class Tree:
 		else:
 			self.root 			= Node(game_obj,0,None)
 			self.root.parent	= None 
-
 
 
 	def update_tree(self,x=.95,dirichlet_a=.3,rollout_p=.25,iters=300,abbrev=True): 

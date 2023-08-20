@@ -104,14 +104,14 @@ def send_gameover(ip,port):
 if __name__ == "__main__" and True:
 	
 
-	n_threads 			= 32
+	n_threads 			= 8
 	n_games 			= 64 
 	gen 				= 0 
-	offset 				= 1 
+	offset 				= 2
 
 	if not len(sys.argv) > 1:
 		print(f"specify server IP")
-		exit()
+		exit() 
 
 	server_addr 		= sys.argv[1]
 

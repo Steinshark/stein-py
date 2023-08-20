@@ -261,7 +261,8 @@ class Chess(TwoPEnv):
 		self.result     	= None 
 		self.tensorizing	= tensorizing_fn
 		self.id 			= id 
-		self.gen 			= gen
+		self.gen 			= gen	
+		self.start_time 	= time.time()
 
 		if chess_moves is None:
 			try:
