@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from networks import ChessDataset
 import multiprocessing
 import string 
+import sys 
 
 def softmax(x):
 		if len(x.shape) < 2:
@@ -241,7 +242,7 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel_muiltithread(self.get_generations(),25,250,225,self.cur_model,4)
+					self.duel_muiltithread(self.get_generations(),25,self.max_moves,self.search_depth,self.cur_model,4)
 					self.load_model(self.model,self.cur_model)
 
 		self.checked_updates += 1 
@@ -583,3 +584,18 @@ class Server:
 
 		print(f"\n")
 
+
+if __name__ == "__main__":
+
+	queue_cap 			= 16 
+	max_moves 			= 300 
+	search_depth 		= 225
+	
+	for arg in sys.argv:
+		if "queue_cap=" in arg:
+			queue_cap=int(arg.replace("queue_cap=",""))
+		elif "iter_depth=" in arg:
+			iter_depth=int(arg.replace("iter_depth=",""))
+		elif "max_moves=" in arg:
+			max_moves=int(arg.replace("max_moves=",""))
+	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=iter_depth)
