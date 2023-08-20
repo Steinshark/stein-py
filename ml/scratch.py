@@ -340,7 +340,7 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 	started_games 			= n_threads-1
 
 	#For infinity 
-	for I_ in range(1):
+	while True:
 
 
 		#Conduct MCTS
@@ -362,7 +362,7 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 		local_policies 		= [active_trees[i].get_policy() for i in range(len(active_trees))]
 		local_softmaxs 		= [softmax(numpy.asarray(list(local_policies[i].values()),dtype=float)) for i in range(len(local_policies))]
 
-		print(f"{local_policies[0]}\t-{sum(local_policies[0].values())}")
+		#print(f"{local_policies[0]}\t-{sum(local_policies[0].values())}")
 		#Place all legal policy moves in 
 		for i in range(len(local_softmaxs)):
 			for key,prob in zip(local_policies[i].keys(),local_softmaxs[i]):
@@ -404,7 +404,7 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 				active_trees[i]			= Tree(active_games[i],base_node=active_trees[i].root.children[next_moves[i]],search_depth=search_depth)
 		
 		
-		print(f"calculated {n_threads} moves in {(time.time()-t0):.4f}s\n{[active_games[i].get_result() for i in range(len(active_games))]}\n\n")
+		#print(f"calculated {n_threads} moves in {(time.time()-t0):.4f}s\n{[active_games[i].get_result() for i in range(len(active_games))]}\n\n")
 
 										
 
@@ -428,5 +428,5 @@ if __name__ == "__main__":
 			n_threads 			= int(arg.replace("n_threads=",""))
 			print(f"\tset threads at {n_threads}")
 
-	play_games_simul(n_threads=n_threads,max_moves=5,search_depth=225)
+	play_games_simul(n_threads=n_threads,max_moves=300,search_depth=225)
 
