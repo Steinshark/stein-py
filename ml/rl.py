@@ -93,11 +93,13 @@ class Tree:
 
 	def pre_network_call(self):
 		self.depth 	+= 1 
+
 		if self.depth > self.search_depth:
 			self.search_complete = True 
 			if not hasattr(self,"current_node"):
-				self.current_node 		= node 
+				self.current_node 		= self.root 
 			return 
+		
 		self.network_call_ready = False 
 		node 					= self.root 
 		starting_move 			= 1 if self.root.game_obj.board.turn == chess.WHITE else -1
