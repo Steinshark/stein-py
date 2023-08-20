@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from rl import Tree, pre_network_call,post_network_call
 import multiprocessing
 import sys 
+import numba 
+
 sys.setrecursionlimit(3000)
 
 class Color:
@@ -309,10 +311,26 @@ def get_generations():
 
 
 
+def fwd_model_pass(model,reprs):
+	with torch.no_grad():
+		tensors 				= torch.from_numpy(numpy.asarray(reprs)).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+		probs,values 			= model.forward(tensors)
+		probs 					= probs.detach()
+		values 					= values.detach()
 
+	return probs,values
+
+def save_tensors(data,id,gen):
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{id}_localpi",numpy.asarray(data['pis'],dtype=float))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{id}_states",numpy.asarray(data['reprs'],dtype=float))
+	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{id}_results",numpy.asarray(data['outcome'],dtype=float))
+	
 def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 
 	model 					= networks.ChessSmall()
+	model 					= model.eval()
+	model 					= torch.jit.trace(model,[torch.randn((8,6,8,8)).to("cuda")])
+	model 					= torch.jit.freeze(model)
 
 	active_games 			= [games.Chess(max_moves,id=_) for _ in range(n_threads)]
 	active_trees 			= [Tree(chess_game,search_depth=search_depth) for chess_game in active_games]
@@ -322,7 +340,7 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 	started_games 			= n_threads-1
 
 	#For infinity 
-	while True:
+	for I_ in range(1):
 
 
 		#Conduct MCTS
@@ -333,11 +351,8 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 			[active_trees[i].pre_network_call() for i in range(len(active_trees))]
 
 			#Run node reprs through model 
-			reprs 					= [active_games[i].get_repr() for i in range(len(active_games)) ]
-			tensors 				= torch.stack(reprs)
-			probs,values 			= model.forward(tensors)
-			probs 					= probs.detach()
-			values 					= values.detach()
+			reprs 					= [active_games[i].get_repr(numpy=True) for i in range(len(active_games)) ]
+			probs,values 			=  fwd_model_pass(model,reprs)
 
 			#Call all trees to use model eval 
 			[active_trees[i].post_network_call(probs[i],values[i]) for i in range(len(active_trees))] 
@@ -364,7 +379,7 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 
 		#Save and make moves 
 		for i in range(len(active_games)):
-			active_experiences[i]['reprs'].append(active_games[i].get_repr(numpy=True))
+			active_experiences[i]['reprs'].append(reprs[i])
 			active_experiences[i]['pis'].append(pis[i])
 			active_games[i].make_move(next_moves[i])
 		
@@ -376,9 +391,7 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 			if not active_games[i].get_result() is None:
 				active_experiences[i]['outcome']	= numpy.ones(len(active_experiences[i]["reprs"]),dtype=numpy.int8) * active_games[i].get_result()
 				print(f"\tgame no. {active_games[i].id}\t== {active_games[i].get_result()}\tafter\t{active_games[i].move} moves in {(time.time()-active_games[i].start_time):.2f}s\t {(time.time()-active_games[i].start_time)/active_games[i].move:.2f}s/move")
-				numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{active_games[i].id}_localpi",numpy.asarray(active_experiences[i]['pis'],dtype=float))
-				numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{active_games[i].id}_states",numpy.asarray(active_experiences[i]['reprs'],dtype=float))
-				numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{active_games[i].id}_results",numpy.asarray(active_experiences[i]['outcome'],dtype=float))
+				save_tensors(active_experiences[i],active_games[i],0)
 				
 				#Replace 
 				started_games 			+= 1
@@ -409,5 +422,11 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 
 
 if __name__ == "__main__":
-	play_games_simul(n_threads=8,max_moves=5,search_depth=225)
+	n_threads 			= 8
+	for arg in sys.argv:
+		if "n_threads=" in arg:
+			n_threads 			= int(arg.replace("n_threads=",""))
+			print(f"\tset threads at {n_threads}")
+
+	play_games_simul(n_threads=n_threads,max_moves=5,search_depth=225)
 

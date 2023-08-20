@@ -16,6 +16,7 @@ import games
 import pickle
 import copy
 import socket
+import numba 
 
 def softmax(x):
 	if len(x.shape) < 2:
@@ -92,14 +93,7 @@ class Tree:
 		
 
 	def pre_network_call(self):
-		self.depth 	+= 1 
-
-		if self.depth > self.search_depth:
-			self.search_complete = True 
-			if not hasattr(self,"current_node"):
-				self.current_node 		= self.root 
-			return 
-		
+	
 		self.network_call_ready = False 
 		node 					= self.root 
 		starting_move 			= 1 if self.root.game_obj.board.turn == chess.WHITE else -1
@@ -115,6 +109,13 @@ class Tree:
 
 		#Check if game over
 		result:float or bool 	= node.game_obj.is_game_over()
+
+		self.depth 	+= 1 
+		if self.depth > self.search_depth:
+			self.search_complete = True 
+			if not hasattr(self,"current_node"):
+				self.current_node 		= node 
+			return 
 		
 		#If endgame, recursively call pre_network_call until not an endgame node 
 		if not result is None:
@@ -138,7 +139,8 @@ class Tree:
 			
 
 	def post_network_call(self,prob,v):
-
+		if self.search_complete:
+			return
 		#Process Node 
 		node 						= self.current_node
 		prob_cpu:torch.Tensor		= prob.to(torch.device('cpu'),non_blocking=True).numpy()
