@@ -274,8 +274,10 @@ class Chess(TwoPEnv):
 		
 		if move_to_index is None:
 			self.move_to_index 	= {chess.Move.from_uci(uci):i for i,uci in enumerate(self.chess_moves)}
+			self.index_to_move 	= {val:key for key,val in self.move_to_index.items()}
 		else:
 			self.move_to_index 	= move_to_index
+			self.index_to_move 	= {val:key for key,val in self.move_to_index.items()}
 		
 
 	def get_legal_moves(self):
@@ -284,11 +286,11 @@ class Chess(TwoPEnv):
 	
 	def make_move(self,move:int or chess.Move):
 
-		if isinstance(move,chess.Move):
-			self.board.push(move)
+		if isinstance(move,int):
+			self.board.push(self.index_to_move[move])
 
-		elif isinstance(move,int):
-			self.board.push_san(self.chess_moves[move])
+		elif isinstance(move,chess.Move):
+			self.board.push(move)
 		
 		self.move  += 1 
 
@@ -334,8 +336,8 @@ class Chess(TwoPEnv):
 
 
 	def build_as_network(self):
-
-		return (self.tensorizing(self.board.fen(),dtype=numpy.int8),self.id,self.gen)
+		return (self.board.fen(),self.id,self.gen)
+		#return (self.tensorizing(self.board.fen(),dtype=numpy.int8),self.id,self.gen)
 
 
 	def copy(self):

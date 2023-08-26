@@ -15,10 +15,52 @@ import multiprocessing
 import string 
 import sys 
 NETWORK_BUFFER_SIZE 			= 1024*16
+
 def softmax(x):
 		if len(x.shape) < 2:
 			x = numpy.asarray([x],dtype=float)
 		return extmath.softmax(x)[0]
+
+def exchange_ints(fen):
+	for i in range(1,9):
+		fen 	= fen.replace(str(i),"e"*i) 
+	return fen
+
+def fen_to_tensor(fen_list):
+
+	batch_size 		= len(fen_list)
+
+	board_tensors 	= numpy.zeros(shape=(batch_size,6,8,8),dtype=float)
+
+	piece_indx 		= {"R":4,"N":2,"B":3,"Q":5,"K":6,"P":1,"r":-4,"n":-2,"b":-3,"q":-5,"k":-6,"p":-1}
+	
+	#Go through FEN and fill pieces
+	replaced_fens 	= map(exchange_ints,fen_list)
+
+	for i,fen in enumerate(replaced_fens):
+		try:
+			position	= fen.split(" ")[0].split("/")
+			turn 		= fen.split(" ")[1]
+			castling 	= fen.split(" ")[2]
+		except IndexError:
+			print(f"weird fen: {fen}")
+		
+		#Place pieces
+		for rank_i,rank in enumerate(reversed(position)):
+			for file_i,piece in enumerate(rank): 
+				if not piece == "e":
+					board_tensors[i,0,rank_i,file_i]	= piece_indx[piece]  
+		
+		#Place turn 
+		slice 		= 1 
+		board_tensors[i,slice,:,:]   = numpy.ones(shape=(1,8,8),dtype=float) * 1 if turn == "w" else -1
+
+		#Place all castling allows 
+		for castle in ["K","Q","k","q"]:
+			slice += 1
+			board_tensors[i,slice,:,:]	= numpy.ones(shape=(1,8,8),dtype=float) * 1 if castle in castling else 0
+
+	return board_tensors
 
 
 class Color:
@@ -33,7 +75,7 @@ class Color:
 
 
 class Server:
-
+	
 	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0004,start_gen=0,timeout=.01,server_ip="10.0.0.60"):
 		self.queue          	= {} 
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -115,7 +157,7 @@ class Server:
 
 	def fill_queue(self):
 		
-		self.queue           	= {}
+		self.queue.clear()
 		start_listen_t  		= time.time()
 		iters 					= 0
 		found_something 		= False 
@@ -127,21 +169,18 @@ class Server:
 
 			#Listen for a connection
 			try:
-				repr,addr            	= self.socket.recvfrom(NETWORK_BUFFER_SIZE)
-				repr,game_id,gen        = pickle.loads(repr) 
+				data,addr            	= self.socket.recvfrom(NETWORK_BUFFER_SIZE)
+				fen,game_id,gen        = pickle.loads(data) 
 
 				#Check for gameover notification 
-				if isinstance(repr,str) and repr 	== "gameover":
+				if fen 	== "gameover":
 					self.n_games_finished += 1
 				
 				else:
 					if not gen in self.generations:
 						self.generations.append(gen)
 
-					#Check lookup table
-					obj_hash				= hash(str(repr))
-
-					self.queue[addr]      	= repr 
+					self.queue[addr]      	= fen 
 					iters 					+= 1
 					self.n_moves			+= 1 
 				found_something 				= True 
@@ -169,42 +208,42 @@ class Server:
 			return
 
 		#Send boards through model 
-		returnables     = [] 
-		t_compute 	 	= time.time()
-		encodings   	= torch.from_numpy(numpy.stack(list(self.queue.values()))).float().to(torch.device('cuda'))
-		self.tensor_times	+= time.time()-t_compute
-		t_compute		= time.time()
+		returnables     		= [] 
+		t_compute 	 			= time.time()
+		encodings   			= torch.from_numpy(fen_to_tensor(self.queue.values())).float().to(torch.device('cuda'))
+		self.tensor_times		+= time.time()-t_compute
+		t_compute				= time.time()
 
 		with torch.no_grad():
-			probs,v     	= self.model.forward(encodings)
-			probs 			= probs.type(torch.float16).cpu().numpy()
-			v				= v.cpu().numpy()
-		self.compute_times 	+= time.time()-t_compute
+			probs,v     		= self.model.forward(encodings)
+			probs 				= probs.type(torch.float16).cpu().numpy()
+			v					= v.cpu().numpy()
+		self.compute_times 		+= time.time()-t_compute
 
 		#Pickle objects
-		t_pickle 		= time.time()
+		t_pickle 				= time.time()
 		for prob,score,addr in zip(probs,v,self.queue.keys()):
 			returnables.append(pickle.dumps((prob,score)))
 
-		self.pickle_times 	+= time.time()-t_pickle
+		self.pickle_times 		+= time.time()-t_pickle
 
 		#Return all computations
-		t_send 			= time.time()
+		t_send 					= time.time()
 		for addr,returnable in zip(self.queue,returnables):
 			self.socket.sendto(returnable,addr)
 
-		self.serve_times += time.time()-t_send
+		self.serve_times 		+= time.time()-t_send
 		
-		self.compute_iter += 1
+		self.compute_iter 		+= 1
 			
 	
 	def update(self):
 		
-		if self.checked_updates % 1000 == 0 and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
+		if (self.checked_updates % 200 == 0 or (self.process_start-self.fill_start > .5)) and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
 			self.queue_cap	= max(self.sessions[-1000:])
 		
 		#add every 20 
-		if self.checked_updates % 2000 == 0 and self.queue_cap < self.original_queue_cap:
+		if self.checked_updates % 400 == 0 and self.queue_cap < self.original_queue_cap:
 			self.queue_cap 			+= 1
 		
 		#Check for train 
@@ -568,7 +607,7 @@ class Server:
 if __name__ == "__main__":
 
 	queue_cap 			= 16 
-	max_moves 			= 300 
+	max_moves 			= 200 
 	search_depth 		= 225
 	
 	for arg in sys.argv:
@@ -578,5 +617,5 @@ if __name__ == "__main__":
 			iter_depth=int(arg.replace("iter_depth=",""))
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
-	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth)
-	chess_server.run_server(5)
+	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip="10.0.0.217")
+	chess_server.run_server(10)

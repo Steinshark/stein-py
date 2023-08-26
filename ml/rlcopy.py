@@ -29,14 +29,13 @@ sys.path.append("C:/gitrepos/steinpy/ml")
 class Node:
 
 
-	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=20,move=None,uuid=""):
+	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=20,uuid=""):
 
 		self.game_obj 		= game_obj 
 		self.parent 		= parent 
 		self.parents 		= [parent]
 		self.children		= {}
 		self.num_visited	= 0
-		self.move 			= None 
 
 		self.Q_val 			= 0 
 		self.p				= p 
@@ -76,6 +75,13 @@ class Node:
 		del self.uuid 
 		del self.fen 
 
+def get_best_node_max(node:Node):
+	while node.children:
+			
+			best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
+			node 				= best_node
+
+	return node
 
 class Tree:
 
@@ -107,7 +113,7 @@ class Tree:
 			self.root.parent	= None 
 
 
-	def update_tree(self,x=.95,dirichlet_a=.3,rollout_p=.25,iters=300,abbrev=True): 
+	def update_tree(self,x=.95,dirichlet_a=.3,iters=200,abbrev=True): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		noise_gen				= numpy.random.default_rng().dirichlet
@@ -125,7 +131,7 @@ class Tree:
 			starting_move 			= 1 if self.root.game_obj.board.turn == chess.WHITE else -1
 
 			#Find best leaf node 
-			node 					= self.get_best_node_max(node)
+			node 					= get_best_node_max(node)
 
 			#Add node to global list
 			if not node.fen in self.nodes:
@@ -164,9 +170,10 @@ class Tree:
 
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
 
-				for move in node.children:
-					node.children[move].game_obj.make_move(move)
-					node.children[move].move 	= move	
+				[node.children[move].game_obj.make_move(move) for move in node.children]
+
+				# for move in node.children:
+				# 	node.children[move].move 	= move	
 
 
 			v = float(v)
@@ -217,14 +224,6 @@ class Tree:
 		return 
 	
 
-	def get_best_node_max(self,node:Node):
-		while node.children:
-				
-				best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
-				node 				= best_node
-
-		return node
-	
 
 	def get_policy(self,search_iters,abbrev=True):
 		return self.update_tree_nonrecursive_exp(iters=search_iters,abbrev=abbrev)
