@@ -34,6 +34,7 @@ def run_game(args):
 			t1 = time.time()
 			local_policy 		= mcts_tree.update_tree(iters=search_depth)
 			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
+
 			#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 			for key,prob in zip(local_policy.keys(),local_softmax):
 				local_policy[key] = prob
@@ -41,10 +42,10 @@ def run_game(args):
 			#construct trainable policy 
 			pi              	= numpy.zeros(game.move_space)
 			for move_i,prob in local_policy.items():
-				pi[move_i]    = prob 
+				pi[move_i]    		= prob 
 
 			#sample move from policy 
-			next_move             = random.choices(move_indices,weights=pi,k=1)[0]
+			next_move           = random.choices(move_indices,weights=pi,k=1)[0]
 
 			#Add experiences to set 
 			state_repr.append(game.get_repr(numpy=True))
@@ -53,8 +54,10 @@ def run_game(args):
 
 			#Update MCTS tree 
 			#mcts_tree.cleanup(next_move)
-			next_node 					= mcts_tree.root.children[move_i]
-			mcts_tree.root 				= next_node  
+			next_node 			= mcts_tree.root.children[move_i]
+			mcts_tree.root 		= next_node  
+			#mcts_tree.root.children 	= {}
+			mcts_tree.root.parent	= None
 			#mcts_tree.root.children		= next_node.children
 			game.is_game_over()
 		except RecursionError:
