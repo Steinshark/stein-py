@@ -14,6 +14,7 @@ from rl import Tree, pre_network_call,post_network_call
 import multiprocessing
 import sys 
 import numba 
+import chess 
 
 sys.setrecursionlimit(3000)
 
@@ -422,11 +423,17 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 
 
 if __name__ == "__main__":
-	n_threads 			= 8
-	for arg in sys.argv:
-		if "n_threads=" in arg:
-			n_threads 			= int(arg.replace("n_threads=",""))
-			print(f"\tset threads at {n_threads}")
+	
+	n_games 		= 1000
+	t0 = time.time()
+	
+	for _ in range(n_games):
 
-	play_games_simul(n_threads=n_threads,max_moves=300,search_depth=225)
+		board 	= chess.Board()
+
+		while not (board.is_checkmate() or board.is_seventyfive_moves() or board.is_stalemate() or board.is_insufficient_material()):
+			move 	= random.choice(list(board.generate_legal_moves()))
+			board.push(move)
+	print(f"ran {n_games} in {(time.time()-t0):.4f}s")
+
 

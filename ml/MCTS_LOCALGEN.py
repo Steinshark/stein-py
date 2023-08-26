@@ -52,9 +52,10 @@ def run_game(args):
 			game.make_move(next_move)
 
 			#Update MCTS tree 
-			del mcts_tree
-			mcts_tree					= Tree(game,model,game_id=game_id)
-			
+			#mcts_tree.cleanup(next_move)
+			next_node 					= mcts_tree.root.children[move_i]
+			mcts_tree.root 				= next_node  
+			#mcts_tree.root.children		= next_node.children
 			game.is_game_over()
 		except RecursionError:
 			pass
