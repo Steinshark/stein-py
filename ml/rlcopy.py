@@ -174,7 +174,7 @@ class Tree:
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
 
-		self.nodes
+		del self.nodes
 
 		if self.mode == "Network": 
 			#self.sock.close()
