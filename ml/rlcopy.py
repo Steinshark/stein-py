@@ -16,7 +16,9 @@ import games
 import pickle
 import copy
 import socket
+import weakref 
 
+NETWORK_BUFFER_SIZE 			= 1024*16
 def softmax(x):
 	if len(x.shape) < 2:
 		x = numpy.asarray([x],dtype=float)
@@ -59,6 +61,20 @@ class Node:
 		# 	#Recursively update all parents 
 		if not self.parent is None:
 			self.parent.bubble_up(-1*v)
+		
+	def cleanup(self):
+		del self.game_obj
+		del self.parent 
+		del self.parents 
+		del self.children 
+		del self.num_visited
+		del self.move 
+		del self.Q_val
+		del self.p 
+		del self.c 
+		del self.score 
+		del self.uuid 
+		del self.fen 
 
 
 class Tree:
@@ -80,7 +96,8 @@ class Tree:
 			self.mode 			= "Network" 
 			self.server_addr 	= server_addr
 			self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-			self.sock.settimeout(1)
+			self.sock.settimeout(2)
+			#self.sock.settimeout(1)
 
 		if base_node: 
 			self.root 			= base_node
@@ -157,36 +174,48 @@ class Tree:
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
 
-		del self.nodes
+		self.nodes
 
 		if self.mode == "Network": 
-			self.sock.close()
+			#self.sock.close()
+			pass
 
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
 
 	#217 is downstairs
 	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217"):
+	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217",sleep_time=.2):
 		
 		try:
 			self.sock.sendto(pickle.dumps(self.game_obj.build_as_network()),(hostname,port))
-			#Receives prob as a pickled float16 numpy array  
-			prob,addr 			= self.sock.recvfrom(8192)
-			#Receives v as a pickled float64(??) numpy array  
-			v,addr 				= self.sock.recvfrom(1024)
-			prob 				= pickle.loads(prob).astype(numpy.float32)
-			v 					= pickle.loads(v)	
+			server_response,addr 			= self.sock.recvfrom(NETWORK_BUFFER_SIZE)
+			prob,v 							= pickle.loads(server_response)
 			return prob,v
 		except TimeoutError:
-			time.sleep(.2)
-			#print(f"timeout")
-			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
+			time.sleep(sleep_time)
+			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname,sleep_time=sleep_time*2)
 		except OSError as ose:
-			print(f"os err\n{ose}")
+			print(f"\tos err\n\t{ose}")
 			time.sleep(2)
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
+		
 
+	def cleanup(self,chosen_move_i):
+
+		#Delete all nodes except for child 
+		chosen_child 		= self.root.children[chosen_move_i]
+		for child_move_i in self.root.children:
+
+			#Cleanup if not retaining
+			if not child_move_i == chosen_move_i:
+				self.root.children[child_move_i].cleanup()
+		del self.root.children
+		self.root.children 		= {}	
+		
+		self.root 			= chosen_child
+		return 
+	
 
 	def get_best_node_max(self,node:Node):
 		while node.children:

@@ -14,7 +14,7 @@ from networks import ChessDataset
 import multiprocessing
 import string 
 import sys 
-
+NETWORK_BUFFER_SIZE 			= 1024*16
 def softmax(x):
 		if len(x.shape) < 2:
 			x = numpy.asarray([x],dtype=float)
@@ -34,11 +34,13 @@ class Color:
 
 class Server:
 
-	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0004,start_gen=0,timeout=.002,server_ip="10.0.0.60"):
+	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0004,start_gen=0,timeout=.01,server_ip="10.0.0.60"):
 		self.queue          	= {} 
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.socket.bind((server_ip,6969))
-		self.socket.settimeout(socket_timeout)
+		#self.socket.settimeout(socket_timeout)
+		self.server_ip 			= server_ip 
+		self.socket_timeout 	= socket_timeout
 
 		self.model 				= networks.ChessSmall()
 		
@@ -116,13 +118,16 @@ class Server:
 		self.queue           	= {}
 		start_listen_t  		= time.time()
 		iters 					= 0
-
+		found_something 		= False 
+		#self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		#self.socket.bind((self.server_ip,6969))
+		#self.socket.settimeout(self.socket_timeout)
 		while len(self.queue) < self.queue_cap and ((time.time()-start_listen_t) < self.timeout):
 			iters += 1 
 
 			#Listen for a connection
 			try:
-				repr,addr            	= self.socket.recvfrom(1024)
+				repr,addr            	= self.socket.recvfrom(NETWORK_BUFFER_SIZE)
 				repr,game_id,gen        = pickle.loads(repr) 
 
 				#Check for gameover notification 
@@ -136,23 +141,10 @@ class Server:
 					#Check lookup table
 					obj_hash				= hash(str(repr))
 
-					if obj_hash in self.lookup_table and False:
-						stash					= self.lookup_table[obj_hash]
-						addr,prob,v 			= stash
-
-						sent 		= False 
-						while not sent:
-							try:
-								self.socket.sendto(prob,addr)
-								self.socket.sendto(v,addr)
-								sent 	= True
-							except TimeoutError:
-								pass
-						print(f"used table lookup")
-					else:
-						self.queue[addr]      	= repr 
-						iters 					+= 1
-						self.n_moves			+= 1 
+					self.queue[addr]      	= repr 
+					iters 					+= 1
+					self.n_moves			+= 1 
+				found_something 				= True 
 					
 			#Idle 
 			except TimeoutError:
@@ -160,7 +152,7 @@ class Server:
 
 		self.chunk_fills.append(len(self.queue))
 		self.chunk_maxs.append(self.queue_cap)
-
+		#print(f"had {len(self.queue)} / {self.queue_cap}")
 		self.sessions.append(len(self.queue))
 		self.queue_maxs.append(self.queue_cap)
 
@@ -168,7 +160,7 @@ class Server:
 		self.queue_maxs				= self.queue_maxs[-5000:]
 
 		self.chunk_fills			= self.chunk_fills[-5000:]
-		self.chunk_maxs				= self.chunk_fills[-5000:]
+		self.chunk_maxs				= self.chunk_maxs[-5000:]
 
 
 	def process_queue(self):
@@ -192,26 +184,14 @@ class Server:
 		#Pickle objects
 		t_pickle 		= time.time()
 		for prob,score,addr in zip(probs,v,self.queue.keys()):
-			pickled_prob    = pickle.dumps(prob)
-			pickled_v       = pickle.dumps(score)
-			returnables.append((pickled_prob,pickled_v))
+			returnables.append(pickle.dumps((prob,score)))
 
 		self.pickle_times 	+= time.time()-t_pickle
 
 		#Return all computations
 		t_send 			= time.time()
 		for addr,returnable in zip(self.queue,returnables):
-			prob,v     	= returnable
-			sent 		= False 
-			attempts 	= 0  
-			while not sent and attempts < 25:
-				try:
-					self.socket.sendto(prob,addr)
-					self.socket.sendto(v,addr)
-					sent 	= True
-				except TimeoutError:
-					attempts += 1 
-					pass
+			self.socket.sendto(returnable,addr)
 
 		self.serve_times += time.time()-t_send
 		
@@ -598,4 +578,5 @@ if __name__ == "__main__":
 			iter_depth=int(arg.replace("iter_depth=",""))
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
-	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=iter_depth)
+	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth)
+	chess_server.run_server(5)
