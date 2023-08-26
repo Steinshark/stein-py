@@ -44,6 +44,7 @@ def run_game(args):
 			for move_i,prob in local_policy.items():
 				pi[move_i]    		= prob 
 
+			#-> move_i == *last_move_checked*
 			#sample move from policy 
 			next_move           = random.choices(move_indices,weights=pi,k=1)[0]
 
@@ -54,7 +55,7 @@ def run_game(args):
 
 			#Update MCTS tree 
 			#mcts_tree.cleanup(next_move)
-			next_node 			= mcts_tree.root.children[move_i]
+			next_node 			= mcts_tree.root.children[next_move]
 			mcts_tree.root 		= next_node  
 			#mcts_tree.root.children 	= {}
 			mcts_tree.root.parent	= None
@@ -105,7 +106,7 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 	
 
 	n_threads 			= 8
@@ -132,7 +133,7 @@ if __name__ == "__main__" and True:
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 		#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__" and True:
 
 
 
@@ -145,11 +146,13 @@ if __name__ == "__main__" and False:
 
 	server_addr 		= sys.argv[1]
 	offset 				= int(sys.argv[2])
-
+	import networks
+	model 				= networks.ChessSmall()
+	model.eval()
 	iter 				= 0  
 	#play out games  
 	while True:
 		print(f"\n\nTraining iter {iter}")
 		for i in range(64):
-			run_game((games.Chess,"Network",5,100,i+(10000*offset),0,server_addr))
+			run_game((games.Chess,model,5,100,i+(10000*offset),0,server_addr))
 		iter += 1
