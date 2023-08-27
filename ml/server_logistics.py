@@ -196,17 +196,7 @@ class Server:
 			except TimeoutError:
 				t1 						= time.time()
 
-		self.chunk_fills.append(len(self.queue))
-		self.chunk_maxs.append(self.queue_cap)
-		#print(f"had {len(self.queue)} / {self.queue_cap}")
-		self.sessions.append(len(self.queue))
-		self.queue_maxs.append(self.queue_cap)
-
-		self.sessions				= self.sessions[-5000:]
-		self.queue_maxs				= self.queue_maxs[-5000:]
-
-		self.chunk_fills			= self.chunk_fills[-5000:]
-		self.chunk_maxs				= self.chunk_maxs[-5000:]
+		self.sessions.append((time.time()-start_listen_t,self.queue_cap))
 
 
 	def process_queue(self):
@@ -247,18 +237,11 @@ class Server:
 	def update(self):
 
 		
-		if (self.checked_updates % 200 == 0) and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
-			self.queue_cap	= max(self.sessions[-1000:])
-
-		#Reset on low 
-		no_reset_flag 	= False 
-		if self.process_start-self.fill_start > .5:
-			self.queue_cap 	= self.sessions[-1]
-			no_reset_flag	= True 
+		# #If > .02s for past 5 -> lower queue_cap
+		# if sum([item[0] for item in self.sessions[-5:]]) / 5:
+		# 	self.queue_cap -= 1 
 		
-		#add every 20 
-		if self.checked_updates % 400 == 0 and self.queue_cap < self.original_queue_cap and not no_reset_flag:
-			self.queue_cap 			+= 1
+		#If less than queue_cap for 10
 		
 		#Check for train 
 		if self.n_games_finished % self.train_tresh == 0 and not self.n_games_finished in self.games_finished:
@@ -275,7 +258,7 @@ class Server:
 
 				#Duel models
 				if len(self.get_generations()) > 3:
-					self.duel_muiltithread(self.get_generations(),25,self.max_moves,self.search_depth,self.cur_model,4)
+					self.duel_muiltithread(self.get_generations(),32,self.max_moves,self.search_depth,self.cur_model,4)
 					self.load_model(self.model,self.cur_model)
 
 		self.checked_updates += 1 
@@ -539,7 +522,7 @@ class Server:
 
 
 	def get_n_games(self):
-		files 	= os.listdir(self.DATASET_ROOT+f"/experiences/{self.generation}")
+		return len(os.listdir(self.DATASET_ROOT+f"/experiences/{self.generation}"))
 	
 
 	def train(self,n_samples=2048,bs=32,epochs=2,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
