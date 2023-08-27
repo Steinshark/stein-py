@@ -9,7 +9,7 @@ from rl_notorch import Node,Tree, softmax
 import games
 import sys 
 DATASET_ROOT  	= r"//FILESERVER/S Drive/Data/chess"
-KNOWN_HOSTS		= {"10.0.0.60":2,"10.0.0.217":1}
+KNOWN_HOSTS		= {"10.0.0.60":{"n_threads":8,"offset":2},"10.0.0.217":{"n_threads":8,"offset":1}}
 
 def run_game(args):
 	game_fn,move_limit,search_depth,game_id,gen,server_addr = args
@@ -30,7 +30,7 @@ def run_game(args):
 			local_policy 		= mcts_tree.update_tree(iters=search_depth)
 			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
-			#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
+			print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 			for key,prob in zip(local_policy.keys(),local_softmax):
 				local_policy[key] = prob
 
@@ -97,10 +97,10 @@ def send_gameover(ip,port):
 if __name__ == "__main__" and True:
 	
 
-	n_threads 			= 16
+	n_threads 			= KNOWN_HOSTS[socket.gethostbyname(socket.gethostname())]['n_threads']
 	n_games 			= 128 
 	gen 				= 0 
-	offset 				= KNOWN_HOSTS[socket.gethostbyname(socket.gethostname())]
+	offset 				= KNOWN_HOSTS[socket.gethostbyname(socket.gethostname())]['offset']
 
 	if not len(sys.argv) > 1:
 		print(f"specify server IP")
