@@ -424,16 +424,12 @@ def play_games_simul(n_threads=8,max_moves=300,search_depth=225,gen=0):
 
 if __name__ == "__main__":
 	
-	n_games 		= 1000
-	t0 = time.time()
+	n_iters 	= 10**4
 	
-	for _ in range(n_games):
+	t0 = time.time() 
+	for _ in range(n_iters):
+		awd 	= time.time() 
+	
 
-		board 	= chess.Board()
-
-		while not (board.is_checkmate() or board.is_seventyfive_moves() or board.is_stalemate() or board.is_insufficient_material()):
-			move 	= random.choice(list(board.generate_legal_moves()))
-			board.push(move)
-	print(f"ran {n_games} in {(time.time()-t0):.4f}s")
-
-
+	t_end 		= time.time()
+	print(f"ran in {(t_end-t0):.5f}s - {(t_end-t0)/n_iters}/call")

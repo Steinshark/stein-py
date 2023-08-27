@@ -5,16 +5,11 @@ import socket
 import numpy 
 import pickle 
 import multiprocessing 
-from sklearn.utils import extmath 
-from rlcopy import Node,Tree
+from rl_notorch import Node,Tree, softmax
 import games
 import sys 
 DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
-def softmax(x):
-		if len(x.shape) < 2:
-			x = numpy.asarray([x],dtype=float)
-		return extmath.softmax(x)[0]
 
 def run_game(args):
 	game_fn,model,move_limit,search_depth,game_id,gen,server_addr = args
@@ -94,7 +89,7 @@ def run_game(args):
 	numpy.save(DATASET_ROOT+f"\experiences\gen{gen}\game_{game_id}_results",state_outcome.astype(numpy.float16))
 
 
-	return game_id,time.time()-t0
+	return game_id,time.time()-t0, game.move
 
 def send_gameover(ip,port):
 	try:
@@ -107,13 +102,13 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 	
 
-	n_threads 			= 12
+	n_threads 			= 8
 	n_games 			= 64 
 	gen 				= 0 
-	offset 				= 1
+	offset 				= 2
 
 	if not len(sys.argv) > 1:
 		print(f"specify server IP")
@@ -134,14 +129,10 @@ if __name__ == "__main__" and True:
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 		#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-if __name__ == "__main__" and False:
-
+if __name__ == "__main__" and True:
 
 
 	if not len(sys.argv) > 1:
-		print(f"specify server IP")
-		exit()
-	if not len(sys.argv) > 2:
 		print(f"specify offset")
 		exit()
 
@@ -152,8 +143,7 @@ if __name__ == "__main__" and False:
 	model.eval()
 	iter 				= 0  
 	#play out games  
-	while True:
-		print(f"\n\nTraining iter {iter}")
-		for i in range(64):
-			run_game((games.Chess,model,5,100,i+(10000*offset),0,server_addr))
-		iter += 1
+	id,t,moves 	= run_game((games.Chess,model,100,225,12+(10000*offset),0,server_addr))
+	print(f"finished game in {t:.2f}s\t{t/moves:.3f}s/move")
+
+

@@ -1,11 +1,5 @@
-import torch 
 import time 
-import tkinter as tk
-import chess
-import chess.svg
 from math import sqrt 
-import numpy 
-import sys 
 import numpy 
 from sklearn.utils import extmath 
 import games 
@@ -18,7 +12,6 @@ def softmax(x):
 		x = numpy.asarray([x],dtype=float)
 	return extmath.softmax(x)[0]
 
-sys.path.append("C:/gitrepos/steinpy/ml")
 
 class Node:
 
@@ -80,22 +73,16 @@ def get_best_node_max(node:Node):
 class Tree:
 
 	
-	def __init__(self,game_obj:games.TwoPEnv,model:torch.nn.Module or str,base_node=None,server_addr:str="10.0.0.217"):
+	def __init__(self,game_obj:games.TwoPEnv,base_node=None,server_addr:str="10.0.0.217"):
 		
+		#GAME ITEMS 
 		self.game_obj 		= game_obj 
-		self.model 			= model 
-
-		if isinstance(self.model,torch.nn.Module):
-			self.mode 			= "Manual"
-
-		else:
-			self.mode 			= "Network" 
-			self.server_addr 	= server_addr
-			self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-			self.sock.settimeout(2)
-
 		self.root 			= base_node if not base_node is None else Node(game_obj,0,None)
-		self.root.parent 	= None
+
+		#NETWORK ITEMS
+		self.server_addr 	= server_addr
+		self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.sock.settimeout(2)
 
 
 	def update_tree(self,x=.95,dirichlet_a=.3,iters=200,abbrev=True): 
@@ -105,16 +92,16 @@ class Tree:
 		softmax_fn				= softmax
 		get_best_fn				= get_best_node_max
 
-
-
-		t_test 					=  0
+		#METRICS
 		self.root.parent		= None 
-		flag					= False
 		self.nodes 				= {}
 
-		for iter_i in range(iters):
+		#SEARCH TREE *iters* TIMES
+		for _ in range(iters):
+
+			#Define starting point
 			node 					= self.root
-			starting_move 			= 1 if self.root.game_obj.board.turn == chess.WHITE else -1
+			starting_move 			= 1 if self.root.game_obj.board.turn else -1
 
 			#Find best leaf node 
 			node 					= get_best_fn(node)
@@ -128,6 +115,7 @@ class Tree:
 			#Check if game over
 			result:float or bool 	= node.game_obj.is_game_over()
 			
+			#If end state, get score
 			if not result is None:
 				if result == 0:
 					v = 0 
@@ -137,42 +125,31 @@ class Tree:
 					v = -1 
 					
 			
-			#expand 
+			#Else continue to search tree downwards
 			else:
-				if self.mode == "Manual":
-						
-					with torch.no_grad():
-						prob,v 						= self.model.forward(node.game_obj.get_repr().unsqueeze_(0))
-						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
+				
+				#receive evaluation from server
+				prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr)
 
-				elif self.mode == "Network":
-					prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr)
-					prob_cpu						= prob
-
+				#Create local policy 
 				legal_moves 				= node.game_obj.get_legal_moves()
-				legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
+				legal_probs 				= numpy.array([prob[i] for i in legal_moves])
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
 				legal_probs					= softmax_fn(legal_probs*x + noise)
-
+				
+				#Extend leaf node with newly explored nodes
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
-
 				[node.children[move].game_obj.make_move(move) for move in node.children]
 
-				# for move in node.children:
-				# 	node.children[move].move 	= move	
-
-
+			#Ensure v is in a builtin type 
 			v = float(v)
 
+			#update the current policy
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
 
+		#Cleanup and return policy
 		del self.nodes
-
-		if self.mode == "Network": 
-			#self.sock.close()
-			pass
-
 		return {move:self.root.children[move].num_visited for move in self.root.children}
 
 
@@ -185,9 +162,11 @@ class Tree:
 			server_response,addr 			= self.sock.recvfrom(NETWORK_BUFFER_SIZE)
 			prob,v 							= pickle.loads(server_response)
 			return prob,v
+		
 		except TimeoutError:
 			time.sleep(sleep_time)
 			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname,sleep_time=sleep_time*2)
+		
 		except OSError as ose:
 			print(f"\tos err\n\t{ose}")
 			time.sleep(2)
