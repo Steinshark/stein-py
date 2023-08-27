@@ -130,14 +130,13 @@ class Tree:
 			else:
 				
 				if node.fen in self.local_cache:
-					legal_probs,v 					= self.local_cache[node.fen] 
+					legal_probs,legal_moves,v 		= self.local_cache[node.fen] 
 				else:
 					#receive evaluation from server
 					prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr,curnode=node)
-					#Create local policy 
 					legal_moves 					= node.game_obj.get_legal_moves()
 					legal_probs 					= numpy.array([prob[i] for i in legal_moves])
-					self.local_cache[node.fen]		= (legal_probs,v)
+					self.local_cache[node.fen]		= (legal_probs,legal_moves,v)
 
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
 				legal_probs					= softmax_fn(legal_probs*x + noise)
