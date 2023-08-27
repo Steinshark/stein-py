@@ -277,7 +277,8 @@ class Server:
 
 			#Get numbers over last chunk 
 			percent_served 			= f"{len(self.precalc_queue)}/{self.queue_cap}->{self.calculations/(self.calculations+self.lookups):.3f}"
-
+			if len(self.precalc_queue) < 10:
+				percent_served = f"0{percent_served}"
 
 			telemetry_out 			= ""
 
