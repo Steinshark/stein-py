@@ -54,12 +54,13 @@ def run_game(args):
 			game.make_move(next_move)
 
 			#Update MCTS tree 
-			#mcts_tree.cleanup(next_move)
-			next_node 			= mcts_tree.root.children[next_move]
-			mcts_tree.root 		= next_node  
-			#mcts_tree.root.children 	= {}
-			mcts_tree.root.parent	= None
-			#mcts_tree.root.children		= next_node.children
+			# #mcts_tree.cleanup(next_move)
+			# next_node 			= mcts_tree.root.children[next_move]
+			# mcts_tree.root 		= next_node  
+			# #mcts_tree.root.children 	= {}
+			# mcts_tree.root.parent	= None
+			# #mcts_tree.root.children		= next_node.children
+			mcts_tree 				= Tree(game,model,game_id=game_id,server_addr=server_addr)
 			game.is_game_over()
 		except RecursionError:
 			pass
@@ -109,7 +110,7 @@ def send_gameover(ip,port):
 if __name__ == "__main__" and True:
 	
 
-	n_threads 			= 24
+	n_threads 			= 12
 	n_games 			= 64 
 	gen 				= 0 
 	offset 				= 1
