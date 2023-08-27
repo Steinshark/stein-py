@@ -98,7 +98,7 @@ if __name__ == "__main__" and True:
 	
 
 	n_threads 			= 16
-	n_games 			= 64 
+	n_games 			= 128 
 	gen 				= 0 
 	offset 				= KNOWN_HOSTS[socket.gethostname()]
 
