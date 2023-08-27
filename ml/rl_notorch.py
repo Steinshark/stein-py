@@ -62,6 +62,9 @@ class Node:
 		del self.uuid 
 		del self.fen 
 
+	def make_move(self,move):
+		self.game_obj.make_move(move)
+		self.fen 			= self.game_obj.board.fen().split("-")[0]
 def get_best_node_max(node:Node):
 	while node.children:
 			
@@ -143,7 +146,7 @@ class Tree:
 				
 				#Extend leaf node with newly explored nodes
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
-				[node.children[move].game_obj.make_move(move) for move in node.children]
+				[node.children[move].make_move(move) for move in node.children]
 
 			#Ensure v is in a builtin type 
 			v = float(v)
