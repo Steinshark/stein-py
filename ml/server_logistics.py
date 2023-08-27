@@ -29,7 +29,7 @@ def fen_to_tensor(fen_list):
 
 	batch_size 		= len(fen_list)
 
-	board_tensors 	= numpy.zeros(shape=(batch_size,6,8,8),dtype=float)
+	board_tensors 	= numpy.zeros(shape=(batch_size,6,8,8),dtype=numpy.float32)
 
 	piece_indx 		= {"R":4,"N":2,"B":3,"Q":5,"K":6,"P":1,"r":-4,"n":-2,"b":-3,"q":-5,"k":-6,"p":-1}
 	
@@ -52,12 +52,12 @@ def fen_to_tensor(fen_list):
 		
 		#Place turn 
 		slice 		= 1 
-		board_tensors[i,slice,:,:]   = numpy.ones(shape=(1,8,8),dtype=float) * 1 if turn == "w" else -1
+		board_tensors[i,slice,:,:]   = numpy.ones(shape=(1,8,8),dtype=numpy.float32) * 1 if turn == "w" else -1
 
 		#Place all castling allows 
 		for castle in ["K","Q","k","q"]:
 			slice += 1
-			board_tensors[i,slice,:,:]	= numpy.ones(shape=(1,8,8),dtype=float) * 1 if castle in castling else 0
+			board_tensors[i,slice,:,:]	= numpy.ones(shape=(1,8,8),dtype=numpy.float32) * 1 if castle in castling else 0
 
 	return board_tensors
 
@@ -213,7 +213,7 @@ class Server:
 		with torch.no_grad():
 			probs,v     				= self.frozen_model.forward(encodings)
 			probs 						= probs.type(torch.float16).cpu().numpy()
-			v							= float(v.cpu().item())
+			v							= v.cpu().numpy()
 		self.compute_times 			+= time.time()-t_compute
 
 		#Pickle objects
