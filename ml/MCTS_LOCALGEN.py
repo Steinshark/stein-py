@@ -112,7 +112,7 @@ if __name__ == "__main__" and True:
 		t0 = time.time()
 		#play out games  
 		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-			pool.map(run_game,[(games.Chess,200,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
+			pool.map(run_game,[(games.Chess,200,250,i+(10000*offset),gen,server_addr) for i in range(n_games)])
 		
 		print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))

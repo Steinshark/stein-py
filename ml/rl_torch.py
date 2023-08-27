@@ -80,22 +80,15 @@ def get_best_node_max(node:Node):
 class Tree:
 
 	
-	def __init__(self,game_obj:games.TwoPEnv,model:torch.nn.Module or str,base_node=None,server_addr:str="10.0.0.217"):
+	def __init__(self,game_obj:games.TwoPEnv,model:torch.nn.Module,base_node=None,local_cache={}):
 		
 		self.game_obj 		= game_obj 
 		self.model 			= model 
-
-		if isinstance(self.model,torch.nn.Module):
-			self.mode 			= "Manual"
-
-		else:
-			self.mode 			= "Network" 
-			self.server_addr 	= server_addr
-			self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-			self.sock.settimeout(2)
+		self.model.eval()
 
 		self.root 			= base_node if not base_node is None else Node(game_obj,0,None)
 		self.root.parent 	= None
+		self.local_cache 	= {} 
 
 
 	def update_tree(self,x=.95,dirichlet_a=.3,iters=200,abbrev=True): 
@@ -139,16 +132,16 @@ class Tree:
 			
 			#expand 
 			else:
-				if self.mode == "Manual":
-						
+				if node.fen in self.local_cache:
+					prob_cpu,v 						= self.local_cache[node.fen]
+				else:
 					with torch.no_grad():
 						prob,v 						= self.model.forward(node.game_obj.get_repr().unsqueeze_(0))
 						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
+						self.local_cache[node.fen]	= prob_cpu,v
 
-				elif self.mode == "Network":
-					prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr)
-					prob_cpu						= prob
 
+				
 				legal_moves 				= node.game_obj.get_legal_moves()
 				legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
@@ -173,7 +166,7 @@ class Tree:
 			#self.sock.close()
 			pass
 
-		return {move:self.root.children[move].num_visited for move in self.root.children}
+		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
 
 
 	#217 is downstairs

@@ -5,7 +5,7 @@ import multiprocessing
 import random 
 import os 
 import games 
-from rlcopy import Tree 
+from steinpy.ml.rl_torch import Tree 
 import numpy 
 from sklearn.utils import extmath 
 from torch.utils.data import DataLoader
