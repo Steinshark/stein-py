@@ -76,7 +76,8 @@ class Color:
 class Server:
 	
 	def __init__(self,queue_cap=16,max_moves=200,search_depth=800,socket_timeout=.0004,start_gen=0,timeout=.01,server_ip="10.0.0.60"):
-		self.queue          	= {} 
+		self.precalc_queue      = {}
+		self.postcalc_queue     = {}
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.socket.bind((server_ip,6969))
 		self.server_ip 			= server_ip 
@@ -158,34 +159,38 @@ class Server:
 
 
 	def fill_queue(self):
-		
-		self.queue.clear()
+		requests_handled 	= 0 
+		self.precalc_queue.clear()
+		self.postcalc_queue.clear()
 		start_listen_t  		= time.time()
-		iters 					= 0
-		found_something 		= False 
-		#self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-		#self.socket.bind((self.server_ip,6969))
-		#self.socket.settimeout(self.socket_timeout)
-		while len(self.queue) < self.queue_cap and ((time.time()-start_listen_t) < self.timeout):
-			iters += 1 
+
+		while requests_handled < self.queue_cap and ((time.time()-start_listen_t) < self.timeout):
 
 			#Listen for a connection
 			try:
 				data,addr            	= self.socket.recvfrom(NETWORK_BUFFER_SIZE)
 				fen,game_id,gen        = pickle.loads(data) 
 
-				#Check for gameover notification 
+				#Gameover notify
 				if fen 	== "gameover":
 					self.n_games_finished += 1
 				
+				#Eval Request
 				else:
+
+					#Add gen 
 					if not gen in self.generations:
 						self.generations.append(gen)
 
-					self.queue[addr]      	= fen 
-					iters 					+= 1
-					self.n_moves			+= 1 
-				found_something 				= True 
+					#Check for cache 
+					if fen in self.lookup_table:
+						self.postcalc_queue[addr]	= self.lookup_table[fen]
+					else:
+						self.precalc_queue[addr]    = fen 
+						self.n_moves				+= 1 
+					
+					#upate requests 
+					requests_handled += 1
 					
 			#Idle 
 			except TimeoutError:
@@ -210,9 +215,8 @@ class Server:
 			return
 
 		#Send boards through model 
-		returnables     		= [] 
 		t_compute 	 			= time.time()
-		encodings   			= torch.from_numpy(fen_to_tensor(self.queue.values())).float().to(torch.device('cuda'))
+		encodings   			= torch.from_numpy(fen_to_tensor(self.precalc_queue.values())).float().to(torch.device('cuda'))
 		self.tensor_times		+= time.time()-t_compute
 		t_compute				= time.time()
 
@@ -224,14 +228,15 @@ class Server:
 
 		#Pickle objects
 		t_pickle 				= time.time()
-		for prob,score,addr in zip(probs,v,self.queue.keys()):
-			returnables.append(pickle.dumps((prob,score)))
+		for prob,score,addr in zip(probs,v,self.precalc_queue.keys()):
+			self.postcalc_queue.append(pickle.dumps((prob,score)))
+			self.lookup_table[addr]	= self.postcalc_queue[-1]
 
 		self.pickle_times 		+= time.time()-t_pickle
 
 		#Return all computations
 		t_send 					= time.time()
-		for addr,returnable in zip(self.queue,returnables):
+		for addr,returnable in self.postcalc_queue:
 			self.socket.sendto(returnable,addr)
 
 		self.serve_times 		+= time.time()-t_send

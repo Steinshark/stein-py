@@ -110,7 +110,7 @@ if __name__ == "__main__" and True:
 
 	#while True:
 	while True:
-		print(f"\n\nTraining iter {gen}")
+		print(f"\n\n\tTraining iter {gen}\n\tn_threads:{n_threads}\n\toffset:{offset}\n\tgen:{gen}\n\n")
 		time.sleep(.1)
 		t0 = time.time()
 		#play out games  
