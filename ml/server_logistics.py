@@ -198,6 +198,7 @@ class Server:
 				t1 						= time.time()
 
 		self.sessions.append((time.time()-start_listen_t,self.queue_cap))
+		self.requests_handled 			= requests_handled
 
 
 	def process_queue(self):
@@ -273,14 +274,8 @@ class Server:
 		if cur_time > self.next_update_time:
 
 			#Get numbers over last chunk 
-			percent_served 			= 100*(sum(self.chunk_fills) / (sum(self.chunk_maxs)+.001))
+			percent_served 			= f"{len(self.precalc_queue)}/{self.queue_cap}"
 
-			if percent_served < 50:
-				color 					= Color.RED 
-			elif percent_served < 75:
-				color 					= Color.TAN 
-			else:
-				color 					= Color.GREEN 
 
 			telemetry_out 			= ""
 
@@ -288,7 +283,7 @@ class Server:
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
 			percent_served	= f"{percent_served:.2f}".ljust(6)
-			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served}%{Color.TAN}\t{Color.BLUE}Max:{Color.GREEN}{self.queue_cap}"
+			telemetry_out += f"\t{Color.BLUE}Cap:{Color.GREEN} {percent_served}{Color.TAN}\t{Color.BLUE}Max:{Color.GREEN}{self.queue_cap}"
 			#Add process time
 			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\t{Color.BLUE}Iter:{Color.GREEN}{cycle_time}s\t{Color.BLUE}Games:{Color.GREEN}{self.n_games_finished}{Color.END}"
 			
@@ -597,6 +592,7 @@ class Server:
 			print(f"\t\t{Color.BLUE}Epoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}{Color.END}")
 		self.model.eval()
 		self.frozen_model 		= torch.jit.freeze(torch.jit.trace(self.model,[torch.randn((queue_cap,6,8,8)).to("cuda")]))
+		self.lookup_table 		= {}
 		print(f"\n")
 
 
@@ -614,4 +610,4 @@ if __name__ == "__main__":
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
 	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostbyname(socket.gethostname()))
-	chess_server.run_server(2)
+	chess_server.run_server(20)
