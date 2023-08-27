@@ -761,10 +761,8 @@ class ChessSmall(FullNet):
 			torch.nn.ReLU(),
 
 			torch.nn.Conv2d(512,1024,kernel_size,1,int((kernel_size+1)/2)),
-			torch.nn.ReLU(),
-
-			torch.nn.Conv2d(1024,1024,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU()
+			
 		).to(device)
 
 		self.policy_head       = torch.nn.Sequential(  
