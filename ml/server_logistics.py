@@ -218,7 +218,7 @@ class Server:
 
 		for prob,score,addr in zip(probs,v,self.precalc_queue.keys()):
 			self.postcalc_queue[addr]					= pickle.dumps((prob,score))
-			self.lookup_table[self.precalc_queue[addr]]	= self.postcalc_queue[-1]
+			self.lookup_table[self.precalc_queue[addr]]	= self.postcalc_queue[addr]
 
 		self.pickle_times 		+= time.time()-t_pickle
 
