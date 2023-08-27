@@ -29,7 +29,7 @@ def run_game(args):
 		local_policy,local_cache 	= mcts_tree.update_tree(iters=search_depth)
 		local_softmax 				= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
-		#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
+		print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 		for key,prob in zip(local_policy.keys(),local_softmax):
 			local_policy[key] 			= prob
 
@@ -91,7 +91,7 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 	
 
 	n_threads 			= KNOWN_HOSTS[socket.gethostbyname(socket.gethostname())]['n_threads']
@@ -118,7 +118,7 @@ if __name__ == "__main__" and True:
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 		#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__" and True:
 
 
 	server_addr 		= sys.argv[1]
@@ -127,7 +127,7 @@ if __name__ == "__main__" and False:
 	model.eval()
 	iter 				= 0  
 	#play out games  
-	id,t,moves 	= run_game((games.Chess,20,225,0,0,server_addr))
+	id,t,moves 	= run_game((games.Chess,5,1600,0,0,server_addr))
 	print(f"finished game in {t:.2f}s\t{t/moves:.3f}s/move")
 
 

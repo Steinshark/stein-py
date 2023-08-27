@@ -251,7 +251,7 @@ class Connect4(TwoPEnv):
 class Chess(TwoPEnv):
 
 
-	def __init__(self,max_moves,tensorizing_fn=fen_to_1d,chess_moves=None,move_to_index=None,id=0,gen=0):
+	def __init__(self,max_moves,tensorizing_fn=fen_to_1d,chess_moves=None,move_to_index=None,index_to_move=None,id=0,gen=0):
 
 		super(Chess,self).__init__(max_moves,1968)
 		self.board      	= chess.Board()
@@ -277,7 +277,7 @@ class Chess(TwoPEnv):
 			self.index_to_move 	= {val:key for key,val in self.move_to_index.items()}
 		else:
 			self.move_to_index 	= move_to_index
-			self.index_to_move 	= {val:key for key,val in self.move_to_index.items()}
+			self.index_to_move 	= index_to_move
 		
 
 	def get_legal_moves(self):
@@ -341,7 +341,7 @@ class Chess(TwoPEnv):
 
 
 	def copy(self):
-		returning_copy 			= Chess(self.max_moves,tensorizing_fn=self.tensorizing,chess_moves=self.chess_moves,move_to_index=self.move_to_index)
+		returning_copy 			= Chess(self.max_moves,tensorizing_fn=self.tensorizing,chess_moves=self.chess_moves,move_to_index=self.move_to_index,index_to_move=self.index_to_move)
 		returning_copy.board 	= self.board.copy(stack=False)
 		returning_copy.turn 	= self.turn 
 		returning_copy.move 	= self.move 
