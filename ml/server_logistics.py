@@ -201,9 +201,6 @@ class Server:
 
 	def process_queue(self):
 
-		if not self.queue:
-			return
-
 		#Send boards through model 
 		t_compute 	 			= time.time()
 		encodings   			= torch.from_numpy(fen_to_tensor(self.precalc_queue.values())).float().to(torch.device('cuda'))
