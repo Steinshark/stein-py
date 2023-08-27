@@ -606,7 +606,7 @@ class Server:
 
 if __name__ == "__main__":
 
-	queue_cap 			= 16 
+	queue_cap 			= 8 
 	max_moves 			= 200 
 	search_depth 		= 225
 	
