@@ -100,7 +100,7 @@ if __name__ == "__main__" and True:
 	n_threads 			= 16
 	n_games 			= 128 
 	gen 				= 0 
-	offset 				= KNOWN_HOSTS[socket.gethostname()]
+	offset 				= KNOWN_HOSTS[socket.gethostbyname(socket.gethostname())]
 
 	if not len(sys.argv) > 1:
 		print(f"specify server IP")
