@@ -169,7 +169,7 @@ class Server:
 			#Listen for a connection
 			try:
 				data,addr            	= self.socket.recvfrom(NETWORK_BUFFER_SIZE)
-				fen,game_id,gen        = pickle.loads(data) 
+				fen,game_id,gen      	= pickle.loads(data) 
 
 				#Gameover notify
 				if fen 	== "gameover":
@@ -185,6 +185,7 @@ class Server:
 					#Check for cache 
 					if fen in self.lookup_table:
 						self.postcalc_queue[addr]	= self.lookup_table[fen]
+						
 					else:
 						self.precalc_queue[addr]    = fen 
 						self.n_moves				+= 1 
@@ -221,6 +222,10 @@ class Server:
 			self.lookup_table[self.precalc_queue[addr]]	= self.postcalc_queue[addr]
 
 		self.pickle_times 		+= time.time()-t_pickle
+		
+		import pprint 
+		pprint.pp(self.postcalc_queue)
+		input()
 
 		#Return all computations
 		t_send 					= time.time()
