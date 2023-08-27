@@ -14,39 +14,39 @@ KNOWN_HOSTS		= {"10.0.0.60":{"n_threads":8,"offset":2},"10.0.0.217":{"n_threads"
 def run_game(args):
 	game_fn,move_limit,search_depth,game_id,gen,server_addr = args
 	
-	t0 						= time.time() 
-	game:games.TwoPEnv 		= game_fn(max_moves=move_limit,gen=gen)
-	mcts_tree 				= Tree(game,server_addr=server_addr)
-	move_indices            = list(range(game.move_space))
-	state_repr              = [] 
-	state_pi                = [] 
-	state_outcome           = [] 
-
+	t0 							= time.time() 
+	game:games.TwoPEnv 			= game_fn(max_moves=move_limit,gen=gen)
+	local_cache 				= {}
+	mcts_tree 					= Tree(game,server_addr=server_addr,local_cache=local_cache)
+	move_indices            	= list(range(game.move_space))
+	state_repr              	= [] 
+	state_pi                	= [] 
+	state_outcome           	= [] 
 
 	while game.get_result() is None:
 		#Build a local policy 
 		t1 = time.time()
-		local_policy 		= mcts_tree.update_tree(iters=search_depth)
-		local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
+		local_policy,local_cache 	= mcts_tree.update_tree(iters=search_depth)
+		local_softmax 				= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
 		#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 		for key,prob in zip(local_policy.keys(),local_softmax):
-			local_policy[key] = prob
+			local_policy[key] 			= prob
 
 		#construct trainable policy 
-		pi              	= numpy.zeros(game.move_space)
+		pi              			= numpy.zeros(game.move_space)
 		for move_i,prob in local_policy.items():
-			pi[move_i]    		= prob 
+			pi[move_i]    				= prob 
 
 		#sample move from policy 
-		next_move           = random.choices(move_indices,weights=pi,k=1)[0]
+		next_move           		= random.choices(move_indices,weights=pi,k=1)[0]
 
 		#Add experiences to set 
 		state_repr.append(game.get_repr(numpy=True))
 		state_pi.append(pi)
 		game.make_move(next_move)
 
-		mcts_tree 				= Tree(game,server_addr=server_addr)
+		mcts_tree 					= Tree(game,server_addr=server_addr,local_cache=local_cache)
 		game.is_game_over()
 
 
