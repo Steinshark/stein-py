@@ -225,6 +225,7 @@ class Server:
 		#Return all computations
 		t_send 					= time.time()
 		for addr,returnable in self.postcalc_queue:
+			print(f"sending {returnable}")
 			self.socket.sendto(returnable,addr)
 
 		self.serve_times 		+= time.time()-t_send
@@ -614,4 +615,4 @@ if __name__ == "__main__":
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
 	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostbyname(socket.gethostname()))
-	chess_server.run_server(20)
+	chess_server.run_server(2)
