@@ -202,22 +202,23 @@ class Server:
 	def process_queue(self):
 
 		#Send boards through model 
-		t_compute 	 			= time.time()
-		encodings   			= torch.from_numpy(fen_to_tensor(self.precalc_queue.values())).float().to(torch.device('cuda'))
-		self.tensor_times		+= time.time()-t_compute
-		t_compute				= time.time()
+		t_compute 	 				= time.time()
+		encodings   				= torch.from_numpy(fen_to_tensor(self.precalc_queue.values())).float().to(torch.device('cuda'))
+		self.tensor_times			+= time.time()-t_compute
+		t_compute					= time.time()
 
 		with torch.no_grad():
-			probs,v     		= self.frozen_model.forward(encodings)
-			probs 				= probs.type(torch.float16).cpu().numpy()
-			v					= v.cpu().numpy()
-		self.compute_times 		+= time.time()-t_compute
+			probs,v     				= self.frozen_model.forward(encodings)
+			probs 						= probs.type(torch.float16).cpu().numpy()
+			v							= v.cpu().numpy()
+		self.compute_times 			+= time.time()-t_compute
 
 		#Pickle objects
-		t_pickle 				= time.time()
+		t_pickle 					= time.time()
+		
 		for prob,score,addr in zip(probs,v,self.precalc_queue.keys()):
-			self.postcalc_queue.append(pickle.dumps((prob,score)))
-			self.lookup_table[addr]	= self.postcalc_queue[-1]
+			self.postcalc_queue[addr]					= pickle.dumps((prob,score)))
+			self.lookup_table[self.precalc_queue[addr]]	= self.postcalc_queue[-1]
 
 		self.pickle_times 		+= time.time()-t_pickle
 
