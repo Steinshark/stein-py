@@ -8,8 +8,8 @@ import multiprocessing
 from rl_notorch import Node,Tree, softmax
 import games
 import sys 
-DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
-
+DATASET_ROOT  	= r"//FILESERVER/S Drive/Data/chess"
+KNOWN_HOSTS		= {"10.0.0.60":2,"10.0.0.217":1}
 
 def run_game(args):
 	game_fn,move_limit,search_depth,game_id,gen,server_addr = args
@@ -97,10 +97,10 @@ def send_gameover(ip,port):
 if __name__ == "__main__" and True:
 	
 
-	n_threads 			= 8
+	n_threads 			= 16
 	n_games 			= 64 
 	gen 				= 0 
-	offset 				= 3
+	offset 				= KNOWN_HOSTS[socket.gethostname()]
 
 	if not len(sys.argv) > 1:
 		print(f"specify server IP")
@@ -115,7 +115,7 @@ if __name__ == "__main__" and True:
 		t0 = time.time()
 		#play out games  
 		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-			pool.map(run_game,[(games.Chess,100,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
+			pool.map(run_game,[(games.Chess,200,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
 		
 		print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
