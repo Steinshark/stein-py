@@ -73,12 +73,12 @@ def get_best_node_max(node:Node):
 class Tree:
 
 	
-	def __init__(self,game_obj:games.TwoPEnv,base_node=None,server_addr:str="10.0.0.217"):
+	def __init__(self,game_obj:games.TwoPEnv,base_node=None,server_addr:str="10.0.0.217",local_cache={}):
 		
 		#GAME ITEMS 
 		self.game_obj 		= game_obj 
 		self.root 			= base_node if not base_node is None else Node(game_obj,0,None)
-
+		self.local_cache	= {}
 		#NETWORK ITEMS
 		self.server_addr 	= server_addr
 		self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -124,12 +124,17 @@ class Tree:
 				else:
 					v = -1 
 					
+					
 			
 			#Else continue to search tree downwards
 			else:
 				
-				#receive evaluation from server
-				prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr,curnode=node)
+				if node.fen in self.local_cache:
+					prob,v 		= self.local_cache[node.fen] 
+				else:
+					#receive evaluation from server
+					prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr,curnode=node)
+					self.local_cache[node.fen]		= (prob,v)
 
 				#Create local policy 
 				legal_moves 				= node.game_obj.get_legal_moves()
@@ -150,7 +155,7 @@ class Tree:
 
 		#Cleanup and return policy
 		del self.nodes
-		return {move:self.root.children[move].num_visited for move in self.root.children}
+		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
 
 
 	#217 is downstairs
