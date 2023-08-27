@@ -79,16 +79,15 @@ class Server:
 		self.queue          	= {} 
 		self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.socket.bind((server_ip,6969))
-		#self.socket.settimeout(socket_timeout)
 		self.server_ip 			= server_ip 
 		self.socket_timeout 	= socket_timeout
-
 		self.model 				= networks.ChessSmall()
-		
+		self.model.eval()
+
 		self.cur_model 			= 0 
 		self.gen 				= 0 
 		self.train_tresh		= 32
-		self.new_gen_thresh		= 64
+		self.new_gen_thresh		= 128
 		self.lookup_table 		= {} 
 
 		#GAME OPTIONS 
@@ -120,8 +119,12 @@ class Server:
 		self.server_start 		= None
 		self.started 			= False 
 
-		self.DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
+		self.DATASET_ROOT  		=	 r"\\FILESERVER\S Drive\Data\chess"
 		self.load_model(self.model,start_gen)
+
+		#TEST MODEL 
+		test_input 				= torch.randn(size=(1,6,8,8),device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),dtype=torch.float)
+		self.model.forward(test_input)
 
 
 	def run_server(self,update_every=10):

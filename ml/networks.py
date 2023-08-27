@@ -754,22 +754,22 @@ class ChessSmall(FullNet):
 		kernel_size 		= 5
 
 		self.conv_layers	= torch.nn.Sequential(
-			torch.nn.Conv2d(n_ch,256,kernel_size,int(kernel_size/2),1),
+			torch.nn.Conv2d(n_ch,256,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(256,256,kernel_size,int(kernel_size/2),1),
+			torch.nn.Conv2d(256,256,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(256,512,kernel_size,int(kernel_size/2),1),
+			torch.nn.Conv2d(256,512,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(512,512,kernel_size,int(kernel_size/2),1),
+			torch.nn.Conv2d(512,512,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(512,1024,kernel_size,int(kernel_size/2),1),
+			torch.nn.Conv2d(512,1024,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(1024,1024,kernel_size,int(kernel_size/2),1),
+			torch.nn.Conv2d(1024,1024,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU()
 		).to(device)
 
