@@ -160,7 +160,7 @@ class Tree:
 
 	#217 is downstairs
 	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217",sleep_time=.2,curnode=None):
+	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217",sleep_time=1,curnode=None):
 		
 		try:
 			self.sock.sendto(pickle.dumps(curnode.game_obj.build_as_network()),(hostname,port))
@@ -170,7 +170,7 @@ class Tree:
 		
 		except TimeoutError:
 			time.sleep(sleep_time)
-			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname,sleep_time=sleep_time*2)
+			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname,curnode=curnode,sleep_time=sleep_time*2)
 		
 		except OSError as ose:
 			print(f"\tos err\n\t{ose}")

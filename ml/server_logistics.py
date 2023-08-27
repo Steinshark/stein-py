@@ -5,7 +5,7 @@ import torch
 import numpy 
 import networks
 import games 
-from rl_notorch import Tree
+from rl_torch import Tree
 from sklearn.utils import extmath 
 import random 
 import os 
@@ -148,9 +148,9 @@ class Server:
 				self.update()
 				self.display_upate()
 			except ConnectionResetError as cre:
-				print(f"\t{Color.RED}Connection Reset - Idling 2s{Color.END}")
+				print(f"\t{Color.RED}Connection Reset - Idling 1s{Color.END}")
 				print(f"{Color.RED}{cre}{Color.END}\n")
-				time.sleep(2)
+				time.sleep(1)
 				self.socket.close()
 				self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 				self.socket.bind((socket.gethostname(),6969))
@@ -310,17 +310,21 @@ class Server:
 		state_pi                = [] 
 		state_outcome           = [] 
 		n 						= 1
-
+		model1_local_cache		= {} 
+		model2_local_cache 		= {}
+		mcts_tree1 				= Tree(game_board,local_cache=model1_local_cache)
+		mcts_tree2 				= Tree(game_board,local_cache=model2_local_cache)
 		while game_board.get_result() is None:
 
 			#cur_model_net MOVE 
 			#Build a local policy 
 			if n == 1:
 				model 	= cur_model_net
+				local_policy,model1_local_cache 			= mcts_tree1.update_tree(iters=search_depth)
 			else:
 				model 	= challenger_model_net
-			mcts_tree1 				= Tree(game_board,model)
-			local_policy 			= mcts_tree1.update_tree(iters=search_depth)
+				local_policy,model2_local_cache 			= mcts_tree2.update_tree(iters=search_depth)
+
 			local_softmax 			= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 			for key,prob in zip(local_policy.keys(),local_softmax):
 				local_policy[key] 		= prob
@@ -336,11 +340,11 @@ class Server:
 			state_pi.append(pi)
 			game_board.make_move(next_move)
 
-			#Update MCTS tree 
-			# child_node 				= mcts_tree.root.children[next_move_i]
+			if n == 1:
+				mcts_tree1 					= Tree(game_board,cur_model_net,local_cache=model1_local_cache)
+			else:
+				mcts_tree2 					= Tree(game_board,challenger_model_net,local_cache=model2_local_cache)
 
-			#Release references to other children
-			#del mcts_tree.root.parent
 			game_board.is_game_over()
 		
 
@@ -601,9 +605,9 @@ class Server:
 
 if __name__ == "__main__":
 
-	queue_cap 			= 10 
+	queue_cap 			= 6
 	max_moves 			= 200 
-	search_depth 		= 225
+	search_depth 		= 250
 	
 	for arg in sys.argv:
 		if "queue_cap=" in arg:
@@ -613,4 +617,4 @@ if __name__ == "__main__":
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
 	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostbyname(socket.gethostname()))
-	chess_server.run_server(5)
+	chess_server.run_server(20)
