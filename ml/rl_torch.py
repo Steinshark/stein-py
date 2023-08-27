@@ -130,7 +130,7 @@ class Tree:
 			#expand 
 			else:
 				if node.fen in self.local_cache:
-					legal_probs,v 					= self.local_cache[node.fen]
+					legal_probs,legal_moves,v 					= self.local_cache[node.fen]
 				else:
 					with torch.no_grad():
 						#receive local evaluation
@@ -138,7 +138,7 @@ class Tree:
 						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
 						legal_moves 				= node.game_obj.get_legal_moves()
 						legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
-						self.local_cache[node.fen]	= legal_probs,v
+						self.local_cache[node.fen]	= (legal_probs,legal_moves,v)
 
 
 				
