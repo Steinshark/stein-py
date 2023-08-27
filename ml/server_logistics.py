@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import multiprocessing
 import string 
 import sys 
-NETWORK_BUFFER_SIZE 			= 1024*16
+NETWORK_BUFFER_SIZE 			= 1024
 
 def softmax(x):
 		if len(x.shape) < 2:
@@ -29,7 +29,7 @@ def fen_to_tensor(fen_list):
 
 	batch_size 		= len(fen_list)
 
-	board_tensors 	= numpy.zeros(shape=(batch_size,6,8,8),dtype=float)
+	board_tensors 	= numpy.zeros(shape=(batch_size,6,8,8),dtype=numpy.float16)
 
 	piece_indx 		= {"R":4,"N":2,"B":3,"Q":5,"K":6,"P":1,"r":-4,"n":-2,"b":-3,"q":-5,"k":-6,"p":-1}
 	
@@ -52,12 +52,12 @@ def fen_to_tensor(fen_list):
 		
 		#Place turn 
 		slice 		= 1 
-		board_tensors[i,slice,:,:]   = numpy.ones(shape=(1,8,8),dtype=float) * 1 if turn == "w" else -1
+		board_tensors[i,slice,:,:]   = numpy.ones(shape=(1,8,8),dtype=numpy.float16) * 1 if turn == "w" else -1
 
 		#Place all castling allows 
 		for castle in ["K","Q","k","q"]:
 			slice += 1
-			board_tensors[i,slice,:,:]	= numpy.ones(shape=(1,8,8),dtype=float) * 1 if castle in castling else 0
+			board_tensors[i,slice,:,:]	= numpy.ones(shape=(1,8,8),dtype=numpy.float16) * 1 if castle in castling else 0
 
 	return board_tensors
 
@@ -206,14 +206,14 @@ class Server:
 
 		#Send boards through model 
 		t_compute 	 				= time.time()
-		encodings   				= torch.from_numpy(fen_to_tensor(self.precalc_queue.values())).float().to(torch.device('cuda'))
+		encodings   				= torch.from_numpy(fen_to_tensor(self.precalc_queue.values())).to(torch.device('cuda'))
 		self.tensor_times			+= time.time()-t_compute
 		t_compute					= time.time()
 
 		with torch.no_grad():
 			probs,v     				= self.frozen_model.forward(encodings)
 			probs 						= probs.type(torch.float16).cpu().numpy()
-			v							= v.cpu().numpy()
+			v							= float(v.cpu().item())
 		self.compute_times 			+= time.time()-t_compute
 
 		#Pickle objects
