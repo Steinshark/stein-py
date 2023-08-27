@@ -82,7 +82,7 @@ class Tree:
 		#NETWORK ITEMS
 		self.server_addr 	= server_addr
 		self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-		#self.sock.settimeout(2)
+		self.sock.settimeout(2)
 
 
 	def update_tree(self,x=.95,dirichlet_a=.3,iters=200,abbrev=True): 
