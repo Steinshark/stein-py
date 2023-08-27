@@ -16,14 +16,14 @@ def softmax(x):
 class Node:
 
 
-	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=20,uuid=""):
+	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=1,uuid="",move_i=None):
 
 		self.game_obj 		= game_obj 
 		self.parent 		= parent 
 		self.parents 		= [parent]
 		self.children		= {}
 		self.num_visited	= 0
-
+		self.move_i 		= move_i
 		self.Q_val 			= 0 
 		self.p				= p 
 		self.c 				= c 
@@ -34,9 +34,11 @@ class Node:
 
 		self.fen 			= game_obj.board.fen().split("-")[0]
 	
+
 	def get_score(self):
 		return self.Q_val + ((self.c * self.p) * (sqrt(sum([m.num_visited for m in self.parent.children.values()])) / (1 + self.num_visited)))
 	
+
 	def bubble_up(self,v):
 
 		#Update this node
@@ -47,7 +49,8 @@ class Node:
 		# 	#Recursively update all parents 
 		if not self.parent is None:
 			self.parent.bubble_up(-1*v)
-		
+
+
 	def cleanup(self):
 		del self.game_obj
 		del self.parent 
@@ -62,13 +65,17 @@ class Node:
 		del self.uuid 
 		del self.fen 
 
+
 	def make_move(self,move):
 		self.game_obj.make_move(move)
 		self.fen 			= self.game_obj.board.fen().split("-")[0]
+
+
 def get_best_node_max(node:Node):
 	while node.children:
-			
+			#print(f"node_children: {[(n,node.children[n].Q_val,node.children[n].num_visited) for n in node.children]}")
 			best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
+			#input(f"best was {best_node.move_i}")
 			node 				= best_node
 
 	return node
@@ -97,7 +104,7 @@ class Tree:
 
 		#METRICS
 		self.root.parent		= None 
-		self.nodes 				= {}
+		self.nodes 				= {self.root.fen:[self.root]}
 
 		#SEARCH TREE *iters* TIMES
 		for _ in range(iters):
@@ -109,17 +116,16 @@ class Tree:
 			#Find best leaf node 
 			node 					= get_best_fn(node)
 
-			#Add node to global list
-			if not node.fen in self.nodes:
-				self.nodes[node.fen]= [node]
-			else:
-				self.nodes[node.fen].append(node)
-
 			#Check if game over
 			result:float or bool 	= node.game_obj.is_game_over()
 			
 			#If end state, get score
 			if not result is None:
+				if not node.fen in self.nodes:
+						self.nodes[node.fen]	= [node]
+				else:
+					self.nodes[node.fen].append(node)
+
 				if result == 0:
 					v = 0 
 				elif result == starting_move:
@@ -145,8 +151,19 @@ class Tree:
 				legal_probs					= softmax_fn(legal_probs*x + noise)
 				
 				#Extend leaf node with newly explored nodes
-				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
+				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node,move_i=move_i) for p,move_i in zip(legal_probs,legal_moves)} 
 				[node.children[move].make_move(move) for move in node.children]
+
+				for move in node.children:
+					child_node 	= node.children[move]
+					
+					#Add node to global list
+					if not child_node.fen in self.nodes:
+						self.nodes[child_node.fen]	= [child_node]
+					else:
+						self.nodes[child_node.fen].append(child_node)
+
+
 
 			#Ensure v is in a builtin type 
 			v = float(v)
@@ -154,7 +171,6 @@ class Tree:
 			#update the current policy
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
-
 		#Cleanup and return policy
 		del self.nodes
 		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
