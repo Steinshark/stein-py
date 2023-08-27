@@ -751,47 +751,40 @@ class ChessSmall(FullNet):
 
 		#HYPERPARAMETERS 
 
-		kernel_size 		= 5
+		kernel_size 		= 3
 
 		self.conv_layers	= torch.nn.Sequential(
 			torch.nn.Conv2d(n_ch,256,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
-			torch.nn.Conv2d(256,256,kernel_size,1,int((kernel_size+1)/2)),
-			torch.nn.ReLU(),
-
 			torch.nn.Conv2d(256,512,kernel_size,1,int((kernel_size+1)/2)),
-			torch.nn.ReLU(),
-
-			torch.nn.Conv2d(512,512,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
 			torch.nn.Conv2d(512,1024,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
 
 			torch.nn.Conv2d(1024,1024,kernel_size,1,int((kernel_size+1)/2)),
-			torch.nn.ReLU(),
-			torch.nn.MaxPool2d(2)
+			torch.nn.ReLU()
 		).to(device)
 
 		self.policy_head       = torch.nn.Sequential(  
-			torch.nn.Conv2d(1024,128,1,1,1,bias=True),
+			torch.nn.Conv2d(1024,128,5,1,1,bias=True),
 			torch.nn.MaxPool2d(2),
 			act_fn(),
 			torch.nn.Flatten(),
 
-			torch.nn.Linear(4608,1968),
+			torch.nn.Linear(6272,1968),
 			act_fn(),
 			torch.nn.Softmax(dim=1)
 		).to(device)
 
 		self.value_head      = torch.nn.Sequential( 
-			torch.nn.Conv2d(1024,128,1,1,1,bias=True), 
+			torch.nn.Conv2d(1024,128,5,1,1,bias=True), 
 			torch.nn.MaxPool2d(2),
 			act_fn(),
 			torch.nn.Flatten(),
 
-			torch.nn.Linear(4608,512), 
+			torch.nn.Linear(6272,512), 
 			act_fn(),
 
 			torch.nn.Linear(512,512), 
@@ -805,7 +798,5 @@ class ChessSmall(FullNet):
 		self.model 			= torch.nn.ModuleList([self.conv_layers,self.policy_head,self.value_head]) 
 		self.set_training_vars()
 	def forward(self,x:torch.Tensor):
-		if len(x.shape) == 3:
-			x = x.unsqueeze_(0)
 		conv_out 	= self.conv_layers(x)
 		return self.policy_head(conv_out),self.value_head(conv_out)

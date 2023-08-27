@@ -83,6 +83,7 @@ class Server:
 		self.socket_timeout 	= socket_timeout
 		self.model 				= networks.ChessSmall()
 		self.model.eval()
+		self.frozen_model 		= torch.jit.freeze(torch.jit.trace(self.model,[torch.randn((queue_cap,6,8,8)).to("cuda")]))
 
 		self.cur_model 			= 0 
 		self.gen 				= 0 
@@ -135,7 +136,6 @@ class Server:
 		self.chunk_fills 		= [] 
 		self.chunk_maxs			= [] 
 
-		self.load_model(self.model,5)
 
 		self.games_start 	= time.time()
 		while True:
@@ -217,7 +217,7 @@ class Server:
 		t_compute				= time.time()
 
 		with torch.no_grad():
-			probs,v     		= self.model.forward(encodings)
+			probs,v     		= self.frozen_model.forward(encodings)
 			probs 				= probs.type(torch.float16).cpu().numpy()
 			v					= v.cpu().numpy()
 		self.compute_times 		+= time.time()-t_compute
@@ -282,7 +282,7 @@ class Server:
 			return 
 		
 		cur_time    			= round(time.time()-self.server_start_time,2)
-		
+		cycle_time 				= f"{(self.update_start - self.fill_start):.4f}"
 		#Update every n seconds 
 		if cur_time > self.next_update_time:
 
@@ -302,9 +302,9 @@ class Server:
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
 			percent_served	= f"{percent_served:.2f}".ljust(6)
-			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served}%{Color.TAN}\tMax:{self.queue_cap}"
+			telemetry_out += f"\t{Color.BLUE}Cap:{color} {percent_served}%{Color.TAN}\t{Color.BLUE}Max:{Color.GREEN}{self.queue_cap}"
 			#Add process time
-			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\tGames:{self.n_games_finished}{Color.END}"
+			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\t{Color.BLUE}Iter:{Color.GREEN}{cycle_time}s\t{Color.BLUE}Games:{Color.GREEN}{self.n_games_finished}{Color.END}"
 			
 			print(telemetry_out)
 
@@ -539,7 +539,7 @@ class Server:
 
 	def train(self,n_samples=2048,bs=32,epochs=2,DEV=torch.device('cuda' if torch.cuda.is_available else 'cpu')):
 		gen 						= max(self.generations)
-		model 						= self.model.float()
+		model 						= self.model.float().train()
 		root                        = self.DATASET_ROOT+f"\experiences\gen{gen}"
 		experiences                 = []
 		model.train()
@@ -609,7 +609,8 @@ class Server:
 				model.optimizer.step()
 			
 			print(f"\t\t{Color.BLUE}Epoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}{Color.END}")
-
+		self.model.eval()
+		self.frozen_model 		= torch.jit.freeze(torch.jit.trace(self.model,[torch.randn((queue_cap,6,8,8)).to("cuda")]))
 		print(f"\n")
 
 
