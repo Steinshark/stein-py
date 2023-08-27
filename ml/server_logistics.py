@@ -5,12 +5,11 @@ import torch
 import numpy 
 import networks
 import games 
-from rlcopy import Tree
+from rl_notorch import Tree
 from sklearn.utils import extmath 
 import random 
 import os 
 from torch.utils.data import DataLoader
-from networks import ChessDataset
 import multiprocessing
 import string 
 import sys 
@@ -425,7 +424,7 @@ class Server:
 		self.cur_model 	= best_model
 
 
-	def duel_muiltithread(self,available_models,n_games,max_moves,search_depth,cur_model=0,n_threads=4):
+	def duel_muiltithread(self,available_models,n_games,max_moves,search_depth,cur_model=0,n_threads=5):
 		print(f"\t{Color.TAN}DUELING{Color.END}")
 		best_model 				= cur_model
 		challenger_model		= cur_model
