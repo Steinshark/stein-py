@@ -9,7 +9,7 @@ from rl_notorch import Node,Tree, softmax
 import games
 import sys 
 DATASET_ROOT  	= r"//FILESERVER/S Drive/Data/chess"
-KNOWN_HOSTS		= {"10.0.0.60":{"n_threads":8,"offset":2},"10.0.0.217":{"n_threads":8,"offset":1}}
+KNOWN_HOSTS		= {"10.0.0.60":{"n_threads":8,"offset":2},"10.0.0.217":{"n_threads":16,"offset":1}}
 
 def run_game(args):
 	game_fn,move_limit,search_depth,game_id,gen,server_addr = args
