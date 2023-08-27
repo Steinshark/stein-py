@@ -108,9 +108,8 @@ class Server:
 		self.games_finished 	= [0]
 		self.generations 		= [] 
 		self.n_games_finished 	= 0 
-		self.n_moves 			= 0 
 		self.lookups 			= 0 
-
+		self.calculations 		= 0 
 		#TIME METRICS 
 		self.serve_times		= 0
 		self.compute_iter		= 0
@@ -185,10 +184,11 @@ class Server:
 					#Check for cache 
 					if fen in self.lookup_table:
 						self.postcalc_queue[addr]	= self.lookup_table[fen]
+						self.lookups				+= 1 
 						
 					else:
 						self.precalc_queue[addr]    = fen 
-						self.n_moves				+= 1 
+						self.calculations 			+= 1
 					
 					#upate requests 
 					requests_handled += 1
@@ -249,6 +249,8 @@ class Server:
 			self.games_start = time.time()
 			self.games_finished.append(self.n_games_finished)
 			self.save_model(self.model,gen=self.gen)
+			self.lookup_table 		= {}
+			self.sessions 			= []
 			
 			#Update gen
 			if self.n_games_finished % self.new_gen_thresh == 0:
@@ -274,7 +276,7 @@ class Server:
 		if cur_time > self.next_update_time:
 
 			#Get numbers over last chunk 
-			percent_served 			= f"{len(self.precalc_queue)}/{self.queue_cap}"
+			percent_served 			= f"{len(self.precalc_queue)}/{self.queue_cap}->{self.calculations/(self.calculations+self.lookups):.2f}"
 
 
 			telemetry_out 			= ""
@@ -282,7 +284,7 @@ class Server:
 			#Add timeup 
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
-			percent_served	= percent_served.ljust(8)
+			percent_served	= percent_served.ljust(9)
 			telemetry_out += f"\t{Color.BLUE}Cap:{Color.GREEN} {percent_served}{Color.TAN}\t{Color.BLUE}Max:{Color.GREEN}{self.queue_cap}"
 			#Add process time
 			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\t{Color.BLUE}Iter:{Color.GREEN}{cycle_time}s\t{Color.BLUE}Games:{Color.GREEN}{self.n_games_finished}{Color.END}"
@@ -592,7 +594,6 @@ class Server:
 			print(f"\t\t{Color.BLUE}Epoch {epoch_i} loss: {total_loss/batch_i:.3f} with {len(train_set)}/{len(experiences)}{Color.END}")
 		self.model.eval()
 		self.frozen_model 		= torch.jit.freeze(torch.jit.trace(self.model,[torch.randn((queue_cap,6,8,8)).to("cuda")]))
-		self.lookup_table 		= {}
 		print(f"\n")
 
 
