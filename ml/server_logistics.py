@@ -238,12 +238,19 @@ class Server:
 			
 	
 	def update(self):
+
 		
-		if (self.checked_updates % 200 == 0 or (self.process_start-self.fill_start > .5)) and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
+		if (self.checked_updates % 200 == 0) and sum(self.sessions[-1000:])/len(self.sessions[-1000:]) > 0:
 			self.queue_cap	= max(self.sessions[-1000:])
+
+		#Reset on low 
+		no_reset_flag 	= False 
+		if self.process_start-self.fill_start > .5:
+			self.queue_cap 	= self.sessions[-1]
+			no_reset_flag	= True 
 		
 		#add every 20 
-		if self.checked_updates % 400 == 0 and self.queue_cap < self.original_queue_cap:
+		if self.checked_updates % 400 == 0 and self.queue_cap < self.original_queue_cap and not no_reset_flag:
 			self.queue_cap 			+= 1
 		
 		#Check for train 
@@ -606,7 +613,7 @@ class Server:
 
 if __name__ == "__main__":
 
-	queue_cap 			= 8 
+	queue_cap 			= 10 
 	max_moves 			= 200 
 	search_depth 		= 225
 	
