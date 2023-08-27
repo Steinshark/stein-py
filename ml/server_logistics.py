@@ -221,6 +221,7 @@ class Server:
 		for prob,score,addr in zip(probs,v,self.precalc_queue.keys()):
 			self.postcalc_queue[addr]					= pickle.dumps((prob,score))
 			self.lookup_table[self.precalc_queue[addr]]	= self.postcalc_queue[addr]
+			print(f"add fen {self.precalc_queue[addr]} to lookups")
 
 		self.pickle_times 		+= time.time()-t_pickle
 		
@@ -276,7 +277,7 @@ class Server:
 		if cur_time > self.next_update_time:
 
 			#Get numbers over last chunk 
-			percent_served 			= f"{len(self.precalc_queue)}/{self.queue_cap}->{self.calculations/(self.calculations+self.lookups):.2f}"
+			percent_served 			= f"{len(self.precalc_queue)}/{self.queue_cap}->{self.calculations/(self.calculations+self.lookups):.3f}"
 
 
 			telemetry_out 			= ""
@@ -284,7 +285,7 @@ class Server:
 			#Add timeup 
 			telemetry_out += f"\t{Color.BLUE}Uptime:{Color.TAN}{cur_time}"
 			#Add served stats
-			percent_served	= percent_served.ljust(9)
+			percent_served	= percent_served.ljust(11)
 			telemetry_out += f"\t{Color.BLUE}Cap:{Color.GREEN} {percent_served}{Color.TAN}\t{Color.BLUE}Max:{Color.GREEN}{self.queue_cap}"
 			#Add process time
 			telemetry_out += f"\t{Color.BLUE}Net:{Color.GREEN}{(self.process_start-self.fill_start):.4f}s\t{Color.BLUE}Comp:{Color.GREEN}{(self.update_start-self.process_start):.4f}s\t{Color.BLUE}Iter:{Color.GREEN}{cycle_time}s\t{Color.BLUE}Games:{Color.GREEN}{self.n_games_finished}{Color.END}"
