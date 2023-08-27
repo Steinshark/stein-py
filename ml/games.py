@@ -336,7 +336,7 @@ class Chess(TwoPEnv):
 
 
 	def build_as_network(self):
-		return (self.board.fen(),self.id,self.gen)
+		return (self.board.fen().split(f"-")[0],self.id,self.gen)
 		#return (self.tensorizing(self.board.fen(),dtype=numpy.int8),self.id,self.gen)
 
 
