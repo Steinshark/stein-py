@@ -6,7 +6,7 @@ import games
 import pickle
 import socket
 
-NETWORK_BUFFER_SIZE 			= 1024*16
+NETWORK_BUFFER_SIZE 			= 1024*8
 def softmax(x):
 	if len(x.shape) < 2:
 		x = numpy.asarray([x],dtype=float)
