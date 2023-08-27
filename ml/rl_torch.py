@@ -1,8 +1,6 @@
 import torch 
 import time 
 import tkinter as tk
-import chess
-import chess.svg
 from math import sqrt 
 import numpy 
 import sys 
@@ -10,7 +8,6 @@ import numpy
 from sklearn.utils import extmath 
 import games 
 import pickle
-import socket
 
 NETWORK_BUFFER_SIZE 			= 1024*16
 def softmax(x):
@@ -91,7 +88,7 @@ class Tree:
 		self.local_cache 	= {} 
 
 
-	def update_tree(self,x=.95,dirichlet_a=.3,iters=200,abbrev=True): 
+	def update_tree(self,x=.95,dirichlet_a=.3,iters=200): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		noise_gen				= numpy.random.default_rng().dirichlet
@@ -100,14 +97,14 @@ class Tree:
 
 
 
-		t_test 					=  0
 		self.root.parent		= None 
-		flag					= False
 		self.nodes 				= {}
 
-		for iter_i in range(iters):
+		for _ in range(iters):
+
+			#Define starting point
 			node 					= self.root
-			starting_move 			= 1 if self.root.game_obj.board.turn == chess.WHITE else -1
+			starting_move 			= 1 if self.root.game_obj.board.turn else -1
 
 			#Find best leaf node 
 			node 					= get_best_fn(node)
@@ -133,39 +130,32 @@ class Tree:
 			#expand 
 			else:
 				if node.fen in self.local_cache:
-					prob_cpu,v 						= self.local_cache[node.fen]
+					legal_probs,v 					= self.local_cache[node.fen]
 				else:
 					with torch.no_grad():
+						#receive local evaluation
 						prob,v 						= self.model.forward(node.game_obj.get_repr().unsqueeze_(0))
 						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
-						self.local_cache[node.fen]	= prob_cpu,v
+						legal_moves 				= node.game_obj.get_legal_moves()
+						legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
+						self.local_cache[node.fen]	= legal_probs,v
 
 
 				
-				legal_moves 				= node.game_obj.get_legal_moves()
-				legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
 				legal_probs					= softmax_fn(legal_probs*x + noise)
 
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
-
 				[node.children[move].game_obj.make_move(move) for move in node.children]
 
-				# for move in node.children:
-				# 	node.children[move].move 	= move	
-
-
+			#Ensure v is in a builtin type 
 			v = float(v)
 
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
 
+		#Cleanup and return policy
 		del self.nodes
-
-		if self.mode == "Network": 
-			#self.sock.close()
-			pass
-
 		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
 
 
