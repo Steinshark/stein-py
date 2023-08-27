@@ -130,32 +130,39 @@ class Tree:
 			#expand 
 			else:
 				if node.fen in self.local_cache:
-					legal_probs,legal_moves,v 					= self.local_cache[node.fen]
+					prob_cpu,v 						= self.local_cache[node.fen]
 				else:
 					with torch.no_grad():
-						#receive local evaluation
 						prob,v 						= self.model.forward(node.game_obj.get_repr().unsqueeze_(0))
 						prob_cpu					= prob[0].to(torch.device('cpu'),non_blocking=True).numpy()
-						legal_moves 				= node.game_obj.get_legal_moves()
-						legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
-						self.local_cache[node.fen]	= (legal_probs,legal_moves,v)
+						self.local_cache[node.fen]	= (prob_cpu,v)
 
 
 				
+				legal_moves 				= node.game_obj.get_legal_moves()
+				legal_probs 				= numpy.array([prob_cpu[i] for i in legal_moves])
 				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
 				legal_probs					= softmax_fn(legal_probs*x + noise)
 
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node) for p,move_i in zip(legal_probs,legal_moves)} 
+
 				[node.children[move].game_obj.make_move(move) for move in node.children]
 
-			#Ensure v is in a builtin type 
+				# for move in node.children:
+				# 	node.children[move].move 	= move	
+
+
 			v = float(v)
 
 			for identical_node in self.nodes[node.fen]:
 				identical_node.bubble_up(v)				
 
-		#Cleanup and return policy
 		del self.nodes
+
+		if self.mode == "Network": 
+			#self.sock.close()
+			pass
+
 		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
 
 
