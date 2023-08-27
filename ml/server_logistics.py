@@ -623,5 +623,5 @@ if __name__ == "__main__":
 			iter_depth=int(arg.replace("iter_depth=",""))
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
-	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostname())
+	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostbyname(socket.gethostname()))
 	chess_server.run_server(20)
