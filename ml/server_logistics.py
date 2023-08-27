@@ -183,7 +183,8 @@ class Server:
 
 					#Check for cache 
 					if fen in self.lookup_table:
-						self.postcalc_queue[addr]	= self.lookup_table[fen]
+						self.socket.sendto(self.lookup_table[fen],addr)
+						#self.postcalc_queue[addr]	= self.lookup_table[fen]
 						self.lookups				+= 1 
 						
 					else:
