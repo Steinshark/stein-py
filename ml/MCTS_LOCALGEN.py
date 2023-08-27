@@ -12,11 +12,11 @@ DATASET_ROOT  	=	 r"//FILESERVER/S Drive/Data/chess"
 
 
 def run_game(args):
-	game_fn,model,move_limit,search_depth,game_id,gen,server_addr = args
+	game_fn,move_limit,search_depth,game_id,gen,server_addr = args
 	
 	t0 						= time.time() 
 	game:games.TwoPEnv 		= game_fn(max_moves=move_limit,gen=gen)
-	mcts_tree 				= Tree(game,model,game_id=game_id,server_addr=server_addr)
+	mcts_tree 				= Tree(game,server_addr=server_addr)
 	move_indices            = list(range(game.move_space))
 	state_repr              = [] 
 	state_pi                = [] 
@@ -39,7 +39,6 @@ def run_game(args):
 			for move_i,prob in local_policy.items():
 				pi[move_i]    		= prob 
 
-			#-> move_i == *last_move_checked*
 			#sample move from policy 
 			next_move           = random.choices(move_indices,weights=pi,k=1)[0]
 
@@ -48,14 +47,7 @@ def run_game(args):
 			state_pi.append(pi)
 			game.make_move(next_move)
 
-			#Update MCTS tree 
-			# #mcts_tree.cleanup(next_move)
-			# next_node 			= mcts_tree.root.children[next_move]
-			# mcts_tree.root 		= next_node  
-			# #mcts_tree.root.children 	= {}
-			# mcts_tree.root.parent	= None
-			# #mcts_tree.root.children		= next_node.children
-			mcts_tree 				= Tree(game,model,game_id=game_id,server_addr=server_addr)
+			mcts_tree 				= Tree(game,server_addr=server_addr)
 			game.is_game_over()
 		except RecursionError:
 			pass
@@ -102,13 +94,13 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__" and True:
 	
 
 	n_threads 			= 8
 	n_games 			= 64 
 	gen 				= 0 
-	offset 				= 2
+	offset 				= 3
 
 	if not len(sys.argv) > 1:
 		print(f"specify server IP")
@@ -123,27 +115,22 @@ if __name__ == "__main__" and False:
 		t0 = time.time()
 		#play out games  
 		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-			pool.map(run_game,[(games.Chess,"Network",200,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
+			pool.map(run_game,[(games.Chess,100,225,i+(10000*offset),gen,server_addr) for i in range(n_games)])
 		
 		print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 		#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 
-
-	if not len(sys.argv) > 1:
-		print(f"specify offset")
-		exit()
 
 	server_addr 		= sys.argv[1]
-	offset 				= int(sys.argv[2])
 	import networks
 	model 				= networks.ChessSmall()
 	model.eval()
 	iter 				= 0  
 	#play out games  
-	id,t,moves 	= run_game((games.Chess,model,100,225,12+(10000*offset),0,server_addr))
+	id,t,moves 	= run_game((games.Chess,20,225,0,0,server_addr))
 	print(f"finished game in {t:.2f}s\t{t/moves:.3f}s/move")
 
 

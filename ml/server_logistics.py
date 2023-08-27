@@ -569,7 +569,7 @@ class Server:
 				pass
 
 		
-		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints{Color.END} in gen {gen}")
+		print(f"{Color.TAN}\tloaded {len(experiences)} datapoints in gen {gen}{Color.END}")
 
 		if len(experiences) == 0:
 			print(f"No data to train on")
@@ -624,5 +624,5 @@ if __name__ == "__main__":
 			iter_depth=int(arg.replace("iter_depth=",""))
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
-	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip="10.0.0.217")
+	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostname())
 	chess_server.run_server(10)
