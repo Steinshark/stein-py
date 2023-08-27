@@ -30,7 +30,7 @@ def run_game(args):
 			local_policy 		= mcts_tree.update_tree(iters=search_depth)
 			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
-			print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
+			#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
 			for key,prob in zip(local_policy.keys(),local_softmax):
 				local_policy[key] = prob
 
