@@ -24,38 +24,35 @@ def run_game(args):
 
 
 	while game.get_result() is None:
-		try:
-			#Build a local policy 
-			t1 = time.time()
-			local_policy 		= mcts_tree.update_tree(iters=search_depth)
-			local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
+		#Build a local policy 
+		t1 = time.time()
+		local_policy 		= mcts_tree.update_tree(iters=search_depth)
+		local_softmax 		= softmax(numpy.asarray(list(local_policy.values()),dtype=float))
 
-			#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
-			for key,prob in zip(local_policy.keys(),local_softmax):
-				local_policy[key] = prob
+		#print(f"policy of {local_policy} in {(time.time()-t1):.2f}s\nexplored:{sum(list(local_policy.values()))}")
+		for key,prob in zip(local_policy.keys(),local_softmax):
+			local_policy[key] = prob
 
-			#construct trainable policy 
-			pi              	= numpy.zeros(game.move_space)
-			for move_i,prob in local_policy.items():
-				pi[move_i]    		= prob 
+		#construct trainable policy 
+		pi              	= numpy.zeros(game.move_space)
+		for move_i,prob in local_policy.items():
+			pi[move_i]    		= prob 
 
-			#sample move from policy 
-			next_move           = random.choices(move_indices,weights=pi,k=1)[0]
+		#sample move from policy 
+		next_move           = random.choices(move_indices,weights=pi,k=1)[0]
 
-			#Add experiences to set 
-			state_repr.append(game.get_repr(numpy=True))
-			state_pi.append(pi)
-			game.make_move(next_move)
+		#Add experiences to set 
+		state_repr.append(game.get_repr(numpy=True))
+		state_pi.append(pi)
+		game.make_move(next_move)
 
-			mcts_tree 				= Tree(game,server_addr=server_addr)
-			game.is_game_over()
-		except RecursionError:
-			pass
+		mcts_tree 				= Tree(game,server_addr=server_addr)
+		game.is_game_over()
+
 
 	del mcts_tree
 	
-	if isinstance(model,str):
-		send_gameover(server_addr,6969)
+	send_gameover(server_addr,6969)
 
 	#Check game outcome 
 	if game.is_game_over() == 1:
