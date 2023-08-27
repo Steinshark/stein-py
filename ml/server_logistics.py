@@ -229,9 +229,9 @@ class Server:
 
 		#Return all computations
 		t_send 					= time.time()
-		for addr,returnable in self.postcalc_queue:
-			print(f"sending {returnable}")
-			self.socket.sendto(returnable,addr)
+		for addr in self.postcalc_queue:
+			print(f"sending {self.postcalc_queue[addr]}")
+			self.socket.sendto(self.postcalc_queue[addr],addr)
 
 		self.serve_times 		+= time.time()-t_send
 		
