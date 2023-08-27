@@ -145,13 +145,13 @@ class Server:
 				self.update()
 				self.display_upate()
 			except ConnectionResetError as cre:
-				print(f"\t{Color.RED}Connection Reset - Idling 10s{Color.END}")
+				print(f"\t{Color.RED}Connection Reset - Idling 2s{Color.END}")
 				print(f"{Color.RED}{cre}{Color.END}\n")
-				time.sleep(10)
+				time.sleep(2)
 				self.socket.close()
 				self.socket    			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 				self.socket.bind((socket.gethostname(),6969))
-				print(f"\t{Color.GREEN}Socket Reset{Color.END}\n\n")
+				print(f"\t{Color.GREEN}Socket Reset{Color.END}")
 
 
 	def fill_queue(self):
@@ -624,4 +624,4 @@ if __name__ == "__main__":
 		elif "max_moves=" in arg:
 			max_moves=int(arg.replace("max_moves=",""))
 	chess_server 	= Server(queue_cap=queue_cap,max_moves=max_moves,search_depth=search_depth,server_ip=socket.gethostname())
-	chess_server.run_server(10)
+	chess_server.run_server(20)
