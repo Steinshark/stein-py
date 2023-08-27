@@ -46,6 +46,8 @@ if __name__ == "__main__":
 
 		except ValueError:
 			pass
+		except IndexError:
+			pass
 
 	sorted_list 	= [(f"{c[0]:.3f}",c[1]) for c in sorted_list]
 	import pprint 
