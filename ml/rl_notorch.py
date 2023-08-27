@@ -129,7 +129,7 @@ class Tree:
 			else:
 				
 				#receive evaluation from server
-				prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr)
+				prob,v 							= self.SEND_EVAL_REQUEST(hostname=self.server_addr,curnode=node)
 
 				#Create local policy 
 				legal_moves 				= node.game_obj.get_legal_moves()
@@ -155,10 +155,10 @@ class Tree:
 
 	#217 is downstairs
 	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217",sleep_time=.2):
+	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217",sleep_time=.2,curnode=None):
 		
 		try:
-			self.sock.sendto(pickle.dumps(self.game_obj.build_as_network()),(hostname,port))
+			self.sock.sendto(pickle.dumps(curnode.game_obj.build_as_network()),(hostname,port))
 			server_response,addr 			= self.sock.recvfrom(NETWORK_BUFFER_SIZE)
 			prob,v 							= pickle.loads(server_response)
 			return prob,v
