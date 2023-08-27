@@ -223,15 +223,9 @@ class Server:
 
 		self.pickle_times 		+= time.time()-t_pickle
 		
-		import pprint 
-		pprint.pp(self.postcalc_queue)
-		input()
-
 		#Return all computations
 		t_send 					= time.time()
-		for addr in self.postcalc_queue:
-			print(f"sending {self.postcalc_queue[addr]}")
-			self.socket.sendto(self.postcalc_queue[addr],addr)
+		[self.socket.sendto(self.postcalc_queue[addr],addr) for addr in self.postcalc_queue]
 
 		self.serve_times 		+= time.time()-t_send
 		
