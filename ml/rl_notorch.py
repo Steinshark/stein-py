@@ -13,10 +13,16 @@ def softmax(x):
 	return extmath.softmax(x)[0]
 
 
+def global_node_bubbler(node,positions):
+
+	#update all nodes with this position 
+	current_position 	= node.fen 
+
+
 class Node:
 
 
-	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=1,uuid="",move_i=None):
+	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=4,uuid="",move_i=None):
 
 		self.game_obj 		= game_obj 
 		self.parent 		= parent 
@@ -39,7 +45,7 @@ class Node:
 		return self.Q_val + ((self.c * self.p) * (sqrt(sum([m.num_visited for m in self.parent.children.values()])) / (1 + self.num_visited)))
 	
 
-	def bubble_up(self,v):
+	def bubble_up(self,v,positions):
 
 		#Update this node
 		self.Q_val 			= (self.num_visited * self.Q_val + v) / (self.num_visited + 1) 
@@ -47,8 +53,9 @@ class Node:
 
 		# for parent in self.parents:	
 		# 	#Recursively update all parents 
-		if not self.parent is None:
-			self.parent.bubble_up(-1*v)
+		#print(f"\t->{self.move_i}")
+		if not parent is None:
+			parent.bubble_up(-1*v)
 
 
 	def cleanup(self):
@@ -72,12 +79,19 @@ class Node:
 
 
 def get_best_node_max(node:Node):
+	#input(f"\nnode_children: {[(n,f'{node.children[n].get_score():.4f}',node.children[n].num_visited) for n in node.children]}")
+	output 	=	 f"\t{node.move_i}"
+	n_chosen 	= 0 
 	while node.children:
-			#print(f"node_children: {[(n,node.children[n].Q_val,node.children[n].num_visited) for n in node.children]}")
 			best_node 			= max(list(node.children.values()),key = lambda x: x.get_score())
-			#input(f"best was {best_node.move_i}")
 			node 				= best_node
+			output 				+= f"\t->{node.move_i}"
+			n_chosen += 1
 
+	#print(output+"\n")
+	if n_chosen > 2:
+		pass
+		#input(f"new children: {[(n,f'{node.parent.children[n].get_score():.4f}',node.parent.children[n].num_visited) for n in node.parent.children]}")
 	return node
 
 class Tree:
@@ -87,15 +101,16 @@ class Tree:
 		
 		#GAME ITEMS 
 		self.game_obj 		= game_obj 
-		self.root 			= base_node if not base_node is None else Node(game_obj,0,None)
+		self.root 			= base_node if not base_node is None else Node(game_obj,0,None,move_i=-1)
 		self.local_cache	= {}
+
 		#NETWORK ITEMS
 		self.server_addr 	= server_addr
 		self.sock 			= socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.sock.settimeout(2)
 
 
-	def update_tree(self,x=.95,dirichlet_a=.3,iters=200,abbrev=True): 
+	def update_tree(self,x=.9,dirichlet_a=.3,iters=200,abbrev=True): 
 		
 		#DEFINE FUNCTIONS IN LOCAL SCOPE 
 		noise_gen				= numpy.random.default_rng().dirichlet
@@ -104,15 +119,18 @@ class Tree:
 
 		#METRICS
 		self.root.parent		= None 
-		self.nodes 				= {self.root.fen:[self.root]}
+
+		self.positions 			= {self.root.fen:{"Q_val":0,"N_visited":0,"Nodes":[self.root]}}
 
 		#SEARCH TREE *iters* TIMES
 		for _ in range(iters):
 
 			#Define starting point
 			node 					= self.root
-			starting_move 			= 1 if self.root.game_obj.board.turn else -1
 
+			#print(f"\n\nNode starting is {self.root.move_i}")
+			starting_move 			= 1 if self.root.game_obj.board.turn else -1
+			
 			#Find best leaf node 
 			node 					= get_best_fn(node)
 
@@ -121,11 +139,6 @@ class Tree:
 			
 			#If end state, get score
 			if not result is None:
-				if not node.fen in self.nodes:
-						self.nodes[node.fen]	= [node]
-				else:
-					self.nodes[node.fen].append(node)
-
 				if result == 0:
 					v = 0 
 				elif result == starting_move:
@@ -147,32 +160,38 @@ class Tree:
 				
 				legal_moves 					= node.game_obj.get_legal_moves()
 				legal_probs 					= numpy.array([prob[i] for i in legal_moves])
-				noise 						= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
-				legal_probs					= softmax_fn(legal_probs*x + noise)
+				noise 							= noise_gen([dirichlet_a for _ in range(len(legal_probs))],1)*(1-x)
+				legal_probs						= softmax_fn(legal_probs*x + noise)
 				
 				#Extend leaf node with newly explored nodes
 				node.children 		= {move_i : Node(node.game_obj.copy() ,p=p,parent=node,move_i=move_i) for p,move_i in zip(legal_probs,legal_moves)} 
-				[node.children[move].make_move(move) for move in node.children]
-
+				
 				for move in node.children:
-					child_node 	= node.children[move]
+
+					#Update child with move 
+					child_node 						= node.children[move]
+					child_node.make_move(move)
 					
 					#Add node to global list
-					if not child_node.fen in self.nodes:
-						self.nodes[child_node.fen]	= [child_node]
+					if not child_node.fen in self.positions:
+						self.positions[child_node.fen]	= {"Q_val":0,"N_visited":0,"Nodes":[child_node]}
 					else:
-						self.nodes[child_node.fen].append(child_node)
+						self.positions[child_node.fen]["Nodes"].append(child_node)
+						child_node.Q_val 				= self.positions[child_node.fen]["Q_val"]
+						child_node.num_visited			= self.positions[child_node.fen]["N_visited"]
 
+			#print(f"node {node.fen} - down")
 
 
 			#Ensure v is in a builtin type 
 			v = float(v)
 
 			#update the current policy
-			for identical_node in self.nodes[node.fen]:
+			#print(f"\tBubbling {node.move_i}-> {[m.move_i for m in self.nodes[node.fen]]}")
+			for identical_node in self.positions[node.fen]["Nodes"]:
 				identical_node.bubble_up(v)				
 		#Cleanup and return policy
-		del self.nodes
+		del self.positions
 		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
 
 

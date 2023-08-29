@@ -742,14 +742,18 @@ class Model1(FullNet):
 		conv_out 	= self.convlayers(x)
 		return self.policy_head(conv_out),self.value_head(conv_out)
 
-
 class ChessSmall(FullNet):
-
-	def __init__(self,optimizer=torch.optim.Adam,act_fn=torch.nn.ReLU,optimizer_kwargs={"lr":1e-3,"weight_decay":2.5e-4,},device=torch.device('cuda'if torch.cuda.is_available() else 'cpu'),n_ch=6):
+	def __init__(self,
+	      optimizer=torch.optim.Adam,
+		  act_fn=torch.nn.ReLU,
+		  optimizer_kwargs={"lr":1e-3,"weight_decay":2.5e-4,},
+		  device=torch.device('cuda'if torch.cuda.is_available() else 'cpu'),
+		  n_ch=6):
 		super(ChessSmall,self).__init__()
 
 
 		#HYPERPARAMETERS 
+		self.optimizer 		= optimizer (**optimizer_kwargs)
 
 		kernel_size 		= 3
 
@@ -798,3 +802,46 @@ class ChessSmall(FullNet):
 	def forward(self,x:torch.Tensor):
 		conv_out 	= self.conv_layers(x)
 		return self.policy_head(conv_out),self.value_head(conv_out)
+	
+	
+class PolicyNet(FullNet):
+
+
+	def __init__(self,optimizer=torch.optim.Adam,act_fn=torch.nn.ReLU,optimizer_kwargs={"lr":1e-3,"weight_decay":2.5e-4,},device=torch.device('cuda'if torch.cuda.is_available() else 'cpu'),n_ch=6,loss_fn=torch.nn.CrossEntropyLoss):
+		super(PolicyNet,self).__init__(optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,loss_fn=loss_fn,device=device)
+
+
+		#HYPERPARAMETERS 
+
+		kernel_size 		= 3
+
+		self.model	= torch.nn.Sequential(
+			torch.nn.Conv2d(n_ch,256,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.ReLU(),
+
+			torch.nn.Conv2d(256,512,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.ReLU(),
+
+			torch.nn.Conv2d(512,1024,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.ReLU(),
+
+			torch.nn.Conv2d(1024,2048,5,1,1,bias=True),
+			torch.nn.ReLU(),
+
+			torch.nn.Conv2d(2048,2048,5,1,1,bias=True),
+			torch.nn.ReLU(),
+
+			torch.nn.Flatten(),
+			torch.nn.Linear(4608,1968),
+			act_fn(),
+			torch.nn.Softmax(dim=1)
+		).to(device)
+
+
+
+		self.set_training_vars()
+
+
+	def forward(self,x:torch.Tensor):
+		return self.model(x)
+	
