@@ -9,7 +9,6 @@ from sklearn.utils import extmath
 import games 
 import pickle
 
-NETWORK_BUFFER_SIZE 			= 1024*16
 def softmax(x):
 	if len(x.shape) < 2:
 		x = numpy.asarray([x],dtype=float)
@@ -20,7 +19,7 @@ sys.path.append("C:/gitrepos/steinpy/ml")
 class Node:
 
 
-	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=20,uuid=""):
+	def __init__(self,game_obj:games.TwoPEnv,p=.5,parent=None,c=2,uuid=""):
 
 		self.game_obj 		= game_obj 
 		self.parent 		= parent 
@@ -164,25 +163,6 @@ class Tree:
 			pass
 
 		return {move:self.root.children[move].num_visited for move in self.root.children}, self.local_cache
-
-
-	#217 is downstairs
-	#60  is room 
-	def SEND_EVAL_REQUEST(self,port=6969,hostname="10.0.0.217",sleep_time=.2):
-		
-		try:
-			self.sock.sendto(pickle.dumps(self.game_obj.build_as_network()),(hostname,port))
-			server_response,addr 			= self.sock.recvfrom(NETWORK_BUFFER_SIZE)
-			prob,v 							= pickle.loads(server_response)
-			return prob,v
-		except TimeoutError:
-			time.sleep(sleep_time)
-			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname,sleep_time=sleep_time*2)
-		except OSError as ose:
-			print(f"\tos err\n\t{ose}")
-			time.sleep(2)
-			return self.SEND_EVAL_REQUEST(port=port,hostname=hostname)
-		
 
 	def get_policy(self,search_iters,abbrev=True):
 		return self.update_tree_nonrecursive_exp(iters=search_iters,abbrev=abbrev)

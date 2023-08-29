@@ -28,6 +28,7 @@ if __name__ == "__main__":
 
 		try:
 			c[1] 		= float(c[1])
+			c[3] 		= float(c[3])
 			total_time 	+= c[1]
 
 			#place in sorted list 
@@ -46,9 +47,9 @@ if __name__ == "__main__":
 
 		except ValueError:
 			pass
-		except IndexError:
-			pass
+
 
 	sorted_list 	= [(f"{c[0]:.3f}",c[1]) for c in sorted_list]
 	import pprint 
-	pprint.pp(sorted_list[:100])
+	print(f"took {total_time}")
+	pprint.pp(sorted_list[:45])

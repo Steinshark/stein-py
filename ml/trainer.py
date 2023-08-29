@@ -91,7 +91,7 @@ def send_gameover(ip,port):
 		send_gameover(ip,port)
 
 
-if __name__ == "__main__" and True:
+if __name__ == "__main__" and False:
 	
 
 	n_threads 			= KNOWN_HOSTS[socket.gethostbyname(socket.gethostname())]['n_threads']
@@ -112,13 +112,13 @@ if __name__ == "__main__" and True:
 		t0 = time.time()
 		#play out games  
 		with multiprocessing.Pool(n_threads,maxtasksperchild=None) as pool:
-			pool.map(run_game,[(games.Chess,200,250,i+(10000*offset),gen,server_addr) for i in range(n_games)])
+			pool.map(run_game,[(games.Chess,200,800,i+(10000*offset),gen,server_addr) for i in range(n_games)])
 		
 		print(f"ran {n_games} in {(time.time()-t0):.2f}s")
 		#run_game((games.Chess,"NETWORK",10,225,10000,0,server_addr))
 		#run_game((games.Chess,networks.ChessSmall(),10,225,10000,0,server_addr))
 
-if __name__ == "__main__" and False:
+if __name__ == "__main__" and True:
 
 
 	server_addr 		= sys.argv[1]
@@ -127,7 +127,7 @@ if __name__ == "__main__" and False:
 	model.eval()
 	iter 				= 0  
 	#play out games  
-	id,t,moves 	= run_game((games.Chess,5,1600,0,0,server_addr))
+	id,t,moves 	= run_game((games.Chess,20,2000,0,0,server_addr))
 	print(f"finished game in {t:.2f}s\t{t/moves:.3f}s/move")
 
 
