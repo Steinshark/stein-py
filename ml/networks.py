@@ -742,6 +742,7 @@ class Model1(FullNet):
 		conv_out 	= self.convlayers(x)
 		return self.policy_head(conv_out),self.value_head(conv_out)
 
+
 class ChessSmall(FullNet):
 	def __init__(self,
 	      optimizer=torch.optim.Adam,
@@ -813,27 +814,41 @@ class PolicyNet(FullNet):
 
 		#HYPERPARAMETERS 
 
-		kernel_size 		= 3
+		kernel_size 		= 5
 
 		self.model	= torch.nn.Sequential(
-			torch.nn.Conv2d(n_ch,256,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.Conv2d(n_ch,128,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(128),
 
-			torch.nn.Conv2d(256,512,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.Conv2d(128,256,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(256),
 
-			torch.nn.Conv2d(512,1024,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.Conv2d(256,256,5,1,1),
 			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(256),
 
-			torch.nn.Conv2d(1024,2048,5,1,1,bias=True),
+			torch.nn.Conv2d(256,512,5,1,1),
 			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(512),
 
-			torch.nn.Conv2d(2048,2048,5,1,1,bias=True),
+			torch.nn.Conv2d(512,512,5,1,1),
 			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(512),
+
+			torch.nn.Conv2d(512,512,5,1,1),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(512),
+
+			
 
 			torch.nn.Flatten(),
-			torch.nn.Linear(4608,1968),
-			act_fn(),
+
+			torch.nn.Linear(8192,2048),
+			torch.nn.ReLU(),
+
+			torch.nn.Linear(2048,1968),
 			torch.nn.Softmax(dim=1)
 		).to(device)
 

@@ -5,6 +5,8 @@ import multiprocessing
 import random 
 import os 
 import games 
+import sys 
+sys.path.append("C:/gitrepos/")
 from steinpy.ml.rl_torch import Tree 
 import numpy 
 from sklearn.utils import extmath 
@@ -30,11 +32,11 @@ class Color:
 
 
 
-def save_model(model:networks.FullNet,gen=1,count=1,DATASET_ROOT=r"\\FILESERVER\S Drive\Data\chess"):
-    torch.save(model.state_dict(),DATASET_ROOT+f"\models\gen{gen}")
+def save_model(model:networks.FullNet,gen=1,count=1,root=r"\\FILESERVER\S Drive\Data\chess"):
+    torch.save(model.state_dict(),root)
 
     try:
-        state_dict 	 = torch.load(DATASET_ROOT+f"\models\gen{gen}")
+        state_dict 	 = torch.load(root)
         model.load_state_dict(state_dict)
     except RuntimeError as re:
         if count > 5:
