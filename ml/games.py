@@ -6,7 +6,7 @@ import chess
 import json 
 import os 
 import sys 
-
+import string 
 
 
 def fen_to_1d(fen:str,dtype=numpy.float32):
@@ -38,6 +38,46 @@ def fen_to_1d(fen:str,dtype=numpy.float32):
 			board_tensor[slice,:,:]	= numpy.ones(shape=(1,8,8),dtype=dtype) * 1 if castle in castling else 0
 
 		return board_tensor
+
+def fen_to_7d(fen,dtype=numpy.float32,req_grad=False):
+
+	#Encoding will be an 8x8 x n tensor 
+	#	7 for each piece
+	#	4 for castling 7+7+4 
+	# 	1 for move 
+	#t0 = time.time()
+	#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
+	board_tensor 	= numpy.zeros(shape=(7,8,8),dtype=dtype)
+	piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":0,"n":1,"b":2,"q":3,"k":4,"p":5}
+	
+	#Go through FEN and fill pieces
+	for i in range(1,9):
+		fen 	= fen.replace(str(i),"e"*i)
+
+	position	= fen.split(" ")[0].split("/")
+	turn 		= fen.split(" ")[1]
+	castling 	= fen.split(" ")[2]
+	
+	#Place pieces
+	for rank_i,rank in enumerate(reversed(position)):
+		for file_i,piece in enumerate(rank): 
+			if not piece == "e":
+				board_tensor[piece_indx[piece],rank_i,file_i]	=  1 if piece in string.ascii_uppercase else -1
+	
+	#print(f"init took {(time.time()-t0)}")
+	#Place turn 
+	index = 0 
+	#board_tensor[0,slice,:,:]	= torch.ones(size=(8,8)) * 1 if turn == "w" else -1
+	board_tensor[6,-1,index]   =  1 if turn == "w" else -1
+
+	#Place all castling allows 
+	for castle in ["K","Q","k","q"]:
+		index += 1
+		board_tensor[6,-1,index]	=  1 if castle in castling else 0
+
+	return torch.tensor(board_tensor,requires_grad=req_grad)
+
+
 
 
 class TwoPEnv:
