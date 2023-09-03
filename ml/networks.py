@@ -891,10 +891,10 @@ class PolicyNetSm(FullNet):
 			torch.nn.Linear(12800,2048),
 			torch.nn.ReLU(),
 
-			torch.nn.Linear(2048,1024),
+			torch.nn.Linear(2048,2048),
 			torch.nn.ReLU(),
 
-			torch.nn.Linear(1024,1968),
+			torch.nn.Linear(2048,1968),
 			torch.nn.Tanh()
 		).to(device)
 
