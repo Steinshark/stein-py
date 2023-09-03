@@ -41,7 +41,7 @@ class FullNet(torch.nn.Module):
 		self.loss               = self.loss_fn()
 		self.optimizer          = self.optimizer(self.model.parameters(),**self.optimizer_kwargs)
 
-	def forward(self):
+	def forward(self)->torch.Tensor:
 		raise NotImplementedError(f"'forward' has not been implemented")
 
 
@@ -860,11 +860,12 @@ class PolicyNet(FullNet):
 	def forward(self,x:torch.Tensor):
 		return self.model(x)
 	
+
 class PolicyNetSm(FullNet):
 
 
 	def __init__(self,optimizer=torch.optim.Adam,act_fn=torch.nn.ReLU,optimizer_kwargs={"lr":1e-3,"weight_decay":2.5e-4,},device=torch.device('cuda'if torch.cuda.is_available() else 'cpu'),n_ch=6,loss_fn=torch.nn.CrossEntropyLoss):
-		super(PolicyNet,self).__init__(optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,loss_fn=loss_fn,device=device)
+		super(PolicyNetSm,self).__init__(optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,loss_fn=loss_fn,device=device)
 
 
 		#HYPERPARAMETERS 
@@ -878,20 +879,23 @@ class PolicyNetSm(FullNet):
 
 			torch.nn.Conv2d(128,512,kernel_size,1,int((kernel_size+1)/2)),
 			torch.nn.ReLU(),
-			torch.nn.BatchNorm2d(256),
+			torch.nn.BatchNorm2d(512),
 
-			torch.nn.Conv2d(512,1024,5,1,1),
+			torch.nn.Conv2d(512,512,5,1,1),
 			torch.nn.ReLU(),
-			torch.nn.BatchNorm2d(256),	
+			torch.nn.BatchNorm2d(512),	
 			torch.nn.MaxPool2d(2),	
 
 
 			torch.nn.Flatten(),
-			torch.nn.Linear(8192,1024),
+			torch.nn.Linear(12800,2048),
+			torch.nn.ReLU(),
+
+			torch.nn.Linear(2048,1024),
 			torch.nn.ReLU(),
 
 			torch.nn.Linear(1024,1968),
-			torch.nn.Softmax(dim=1)
+			torch.nn.Tanh()
 		).to(device)
 
 
@@ -899,6 +903,6 @@ class PolicyNetSm(FullNet):
 		self.set_training_vars()
 
 
-	def forward(self,x:torch.Tensor):
+	def forward(self,x:torch.Tensor)->torch.Tensor:
 		return self.model(x)
 	
