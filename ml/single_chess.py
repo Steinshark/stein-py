@@ -142,6 +142,7 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
 
     #Iterate over batches 
     #print(f"Training on {len(dataloader)} batches")
+    losses      = [] 
     for batch_i,batch in enumerate(dataloader):
         #print(f"\tbatch {batch_i}/{len(dataloader)}")
         #CLEAR GRAD 
@@ -160,8 +161,10 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
         #Get model prediction   = 
         loss                    = loss_fn(predicted_moves,eval_loss([fen.split(" ")[1] for fen in game_boards],predicted_moves,final_outcomes,chosen_move_is,legal_indices,mode="reinforce"))
         loss.backward() 
+        losses.append(loss.item())
 
         model.optimizer.step()
+    print(f"train loss: {sum(losses)/len(losses)}")
 
 
 
@@ -215,7 +218,10 @@ if __name__ == "__main__":
     for _ in range(100):
         if _ % 10 == 0:
             print(f"run iter {_}")
-        model   = train(model,generate_training_games(model,128,320),bs=512)
+        l_dataset   = [] 
+        for j in range(10):
+            l_dataset += generate_training_games(model,16,320)
+        model   = train(model,l_dataset,bs=512)
 
     good_wins   = 0
     bad_wins    = 0
