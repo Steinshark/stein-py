@@ -164,7 +164,7 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
         losses.append(loss.item())
 
         model.optimizer.step()
-    print(f"train loss: {sum(losses)/len(losses)}")
+    print(f"\ttrain loss: {sum(losses)/len(losses)}")
 
 
 
@@ -219,7 +219,7 @@ if __name__ == "__main__":
         if _ % 10 == 0:
             print(f"run iter {_}")
         l_dataset   = [] 
-        for j in range(10):
+        for j in range(64):
             l_dataset += generate_training_games(model,16,320)
         model   = train(model,l_dataset,bs=512)
 
