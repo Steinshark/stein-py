@@ -15,23 +15,35 @@ import multiprocessing
 #   feed-forward and choose a move 
 #   store training data 
 
-def get_legal_move(board:chess.Board,position_eval:numpy.ndarray,ε=.05):
+def normalize_weights(weights):
+    #Correct all weights to be positive
+    if min(weights) < 0:
+        positive_shift  = abs(min(weights))
+        weights         = [w + positive_shift for w in weights]
 
-    selecting_function      = max if board.turn == chess.WHITE else min 
+    return numpy.array(weights)/sum(weights)
+
+
+def get_legal_move(board:chess.Board,position_eval:numpy.ndarray,ε=.05,τ=5):
+
 
     #Find legal indices  
     legal_move_indices      = [Chess.move_to_index[move] for move in list(board.generate_legal_moves())]      
-
+    #return Chess.index_to_move[random.choice(legal_move_indices)],legal_move_indices
+    if len(legal_move_indices) == 1:
+        return Chess.index_to_move[legal_move_indices[0]],legal_move_indices
+    
     #Epsilon-greedy
     if random.random() < ε:
-        return Chess.index_to_move[random.choice(legal_move_indices)],legal_move_indices
+        try:
+            legal_move_values       = [position_eval[i] for i in legal_move_indices]
+            return Chess.index_to_move[random.choices(legal_move_indices,normalize_weights(legal_move_values)**τ,k=1)[0]],legal_move_indices
+        except:
+            print(f"legal move vals: {legal_move_values}")
+            print(f"post comp vals : {normalize_weights(legal_move_values)**τ}")
     
-    #Find max of the legal values 
-    legal_move_values       = [(position_eval[i],i) for i in legal_move_indices]
-
-    best_eval,best_index    = selecting_function(legal_move_values,key=lambda x: x[0])
-    
-    return (Chess.index_to_move[best_index],legal_move_indices)
+    else:
+        return Chess.index_to_move[max(legal_move_indices,key=lambda i:position_eval[i])],legal_move_indices 
 
 
 def generate_training_games(model:networks.FullNet,n_games=16,max_ply=320):
@@ -68,7 +80,7 @@ def generate_training_games(model:networks.FullNet,n_games=16,max_ply=320):
         for board in current_boards:
             if (board.is_game_over() or (board.ply() > max_ply)):
                 board.is_active     = False 
-                board.game_result   = 1 if board.result == "1-0" else -1 if board.result == "0-1" else 0
+                board.game_result   = 1 if board.result() == "1-0" else -1 if board.result() == "0-1" else 0
                 #print(f"finished after {board.ply()}")
 
     #Fill in experiences 
@@ -122,7 +134,7 @@ def collate_fn(data):
 
 
 def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
-
+    model.train()
     #Create DataLoader 
     dataloader          = DataLoader(dataset,batch_size=bs,shuffle=True,collate_fn=collate_fn)
     loss_fn             = torch.nn.MSELoss()
@@ -156,8 +168,8 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
 
 
 
-        
-
+    model.eval()
+    return model 
         #Implement training alg 
 
 
@@ -177,22 +189,17 @@ def duel_models(model_w,model_b,max_ply=320):
     while (not board.is_game_over()) and (board.ply() < max_ply):
 
         with torch.no_grad():
-            next_move       = get_legal_move(board,cur_model.forward(fen_to_7d_parallel([board.fen()],req_grad=False).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))).cpu().numpy()[0],ε=.02)[0]
+            next_move       = get_legal_move(board,cur_model.forward(fen_to_7d_parallel([board.fen()],req_grad=False).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))).cpu().numpy()[0],ε=.9,τ=1)[0]
         board.push(next_move)
-        input(board)
-
         if cur_model == model_w:
             cur_model       = model_b
         else:
             cur_model       = model_w
-    print(board.result())
-    print(f"75 move: {board.is_seventyfive_moves()}")
-    print(f"50 move: {board.is_fifty_moves()}")
-    print(f"5 rep  : {board.is_fivefold_repetition()}")
 
-    if board.result     == "1-0":
+
+    if board.result()     == "1-0":
         return "w"
-    elif board.result   == "0-1":
+    elif board.result()   == "0-1":
         return "b"
     else:
         return "draw"
@@ -201,18 +208,14 @@ def duel_models(model_w,model_b,max_ply=320):
 
 
 
-
-
-
 if __name__ == "__main__":
     model       = PolicyNetSm(n_ch=11,optimizer_kwargs={"lr":.0001,"weight_decay":.00001})
     bad_model   = PolicyNetSm(n_ch=11)
 
     for _ in range(100):
-        continue
         if _ % 10 == 0:
             print(f"run iter {_}")
-        train(model,generate_training_games(model,100,320),bs=512)
+        model   = train(model,generate_training_games(model,128,320),bs=512)
 
     good_wins   = 0
     bad_wins    = 0

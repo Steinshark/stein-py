@@ -1,4 +1,4 @@
-a = open("out2.txt","r").readlines()
+a = open("times.txt","r").readlines()
 total 	= 0 
 elp = [] 
 for item in a[1:]:
