@@ -130,11 +130,9 @@ class TwoPEnv:
 		self.move 		= 0 
 
 	def get_legal_moves(self):
-
 		raise NotImplementedError(f"Implement get_legal_moves in the child class!")
 
 	def make_move(self):
-
 		raise NotImplementedError(f"Implement make_move in the child class!")
 	
 	def is_game_over(self):
@@ -152,6 +150,7 @@ class TwoPEnv:
 	def build_as_network(self,id):
 		raise NotImplementedError(f"Implement build_as_network in the child class!")
 	
+
 class Connect4(TwoPEnv):
 
 	def __init__(self,max_moves):
@@ -331,7 +330,10 @@ class Chess(TwoPEnv):
 	try:
 		chess_moves 		= json.loads(open("C:/gitrepos/steinpy/ml/res/chessmoves.txt","r").read())
 	except FileNotFoundError:
-		chess_moves 		= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
+		try:
+			chess_moves 		= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
+		except FileNotFoundError:
+			chess_moves 		= json.loads(open("C:/steincode/steinpy/ml/res/chessmoves.txt","r").read())
 	move_to_index 		= {chess.Move.from_uci(uci):i for i,uci in enumerate(chess_moves)}
 	index_to_move 		= {val:key for key,val in move_to_index.items()}
 

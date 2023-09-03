@@ -1,4 +1,5 @@
-import sys 
+import sys
+sys.path.append("C:\steincode\steinpy\ml")
 import networks 
 from networks import ChessDataset,PolicyNetSm
 import chess 
@@ -52,7 +53,7 @@ def generate_training_games(model:networks.FullNet,n_games=16,max_ply=320):
         #Get evals with network forward pass
         with torch.no_grad():
             position_reprs      = fen_to_7d_parallel([board.fen() for board in current_boards],req_grad=True)
-            position_evals      = model.forward(position_reprs).cpu().numpy()
+            position_evals      = model.forward(position_reprs.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))).cpu().numpy()
 
         #Chose the top legal move 
         top_legal_moves     = [get_legal_move(board,eval) for board,eval in zip(current_boards,position_evals)]
@@ -102,7 +103,7 @@ def eval_loss(turn:str,predicted_moves:torch.Tensor,final_outcome,chosen_move_i,
     else:
         raise NotImplementedError(f"Mode {mode} no implemented in eval_loss")
     
-    return actual_moves
+    return actual_moves.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
                 
 
 
@@ -128,7 +129,7 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
 
 
     #Iterate over batches 
-    print(f"Training on {len(dataloader)} batches")
+    #print(f"Training on {len(dataloader)} batches")
     for batch_i,batch in enumerate(dataloader):
         #print(f"\tbatch {batch_i}/{len(dataloader)}")
         #CLEAR GRAD 
@@ -141,7 +142,7 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
         chosen_move_is:int      = batch[2]
         legal_indices:list      = batch[3]
 
-        predicted_moves         = model.forward(fen_to_7d_parallel([fen for fen in game_boards]))
+        predicted_moves         = model.forward(fen_to_7d_parallel([fen for fen in game_boards]).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
 
 
         #Get model prediction   = 
@@ -168,20 +169,27 @@ def train_model(model,n_iters,n_games,max_ply):
 
 
 def duel_models(model_w,model_b,max_ply=320):
+    model_w.eval()
+    model_b.eval()
     board           = chess.Board() 
     cur_model       = model_w
 
     while (not board.is_game_over()) and (board.ply() < max_ply):
 
-
-        next_move       = get_legal_move(board,cur_model.forward(fen_to_7d(board.fen(),req_grad=False)),ε=0)[0]
+        with torch.no_grad():
+            next_move       = get_legal_move(board,cur_model.forward(fen_to_7d_parallel([board.fen()],req_grad=False).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))).cpu().numpy()[0],ε=.02)[0]
         board.push(next_move)
+        input(board)
 
         if cur_model == model_w:
             cur_model       = model_b
         else:
             cur_model       = model_w
-    
+    print(board.result())
+    print(f"75 move: {board.is_seventyfive_moves()}")
+    print(f"50 move: {board.is_fifty_moves()}")
+    print(f"5 rep  : {board.is_fivefold_repetition()}")
+
     if board.result     == "1-0":
         return "w"
     elif board.result   == "0-1":
@@ -197,18 +205,19 @@ def duel_models(model_w,model_b,max_ply=320):
 
 
 if __name__ == "__main__":
-    model       = PolicyNetSm(n_ch=11)
+    model       = PolicyNetSm(n_ch=11,optimizer_kwargs={"lr":.0001,"weight_decay":.00001})
     bad_model   = PolicyNetSm(n_ch=11)
 
     for _ in range(100):
+        continue
         if _ % 10 == 0:
             print(f"run iter {_}")
-        train(model,generate_training_games(model,64,320))
+        train(model,generate_training_games(model,100,320),bs=512)
 
     good_wins   = 0
     bad_wins    = 0
     draws       = 0
-    n_test_games    = 50
+    n_test_games    = 100
     for i in range(n_test_games):
         res     = duel_models(model,bad_model)
         if res  == "w":
