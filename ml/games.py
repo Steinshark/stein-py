@@ -9,6 +9,7 @@ import sys
 import string 
 
 
+
 def fen_to_1d(fen:str,dtype=numpy.float32):
 		#Encoding will be a bx6x8x8  tensor 
 		board_tensor 	= numpy.zeros(shape=(6,8,8),dtype=dtype)
@@ -76,6 +77,43 @@ def fen_to_7d(fen,dtype=numpy.float32,req_grad=False):
 		board_tensor[6,-1,index]	=  1 if castle in castling else 0
 
 	return torch.tensor(board_tensor,requires_grad=req_grad)
+
+def fen_to_7d_parallel(fens,dtype=numpy.float32,req_grad=False):
+
+	#Encoding will be an 8x8 x n tensor 
+	#	7 for each piece
+	#	4 for castling 7+7+4 
+	# 	1 for move 
+	#t0 = time.time()
+	#board_tensor 	= torch.zeros(size=(1,19,8,8),device=device,dtype=torch.float,requires_grad=False)
+	board_tensor 	= numpy.zeros(shape=(len(fens),11,8,8),dtype=dtype)
+	piece_indx 	= {"R":0,"N":1,"B":2,"Q":3,"K":4,"P":5,"r":0,"n":1,"b":2,"q":3,"k":4,"p":5}
+	
+	#Go through FEN and fill pieces
+	for fen_i,fen in enumerate(fens):
+		for i in range(1,9):
+			fen 	= fen.replace(str(i),"e"*i)
+
+		position	= fen.split(" ")[0].split("/")
+		turn 		= fen.split(" ")[1]
+		castling 	= fen.split(" ")[2]
+		
+		#Place pieces
+		for rank_i,rank in enumerate(reversed(position)):
+			for file_i,piece in enumerate(rank): 
+				if not piece == "e":
+					board_tensor[fen_i,piece_indx[piece],rank_i,file_i]	=  1 if piece in string.ascii_uppercase else -1
+		
+		#Place turn 
+		board_tensor[fen_i,6,:,:]   =  (-1 + (2*int(turn == "w"))) * numpy.ones(shape=(8,8))
+
+		#Place all castling allows 
+		castle_rights	= ["K","Q","k","q"]
+		for right_i,right in enumerate(castle_rights):
+			board_tensor[fen_i,6+right_i,:,:]	=  int(right in castling) * numpy.ones(shape=(8,8))
+
+	return torch.tensor(board_tensor,requires_grad=req_grad)
+
 
 
 
@@ -290,6 +328,12 @@ class Connect4(TwoPEnv):
 
 class Chess(TwoPEnv):
 
+	try:
+		chess_moves 		= json.loads(open("C:/gitrepos/steinpy/ml/res/chessmoves.txt","r").read())
+	except FileNotFoundError:
+		chess_moves 		= json.loads(open(os.path.join("/home/steinshark/code","steinpy","ml","res","chessmoves.txt"),"r").read())
+	move_to_index 		= {chess.Move.from_uci(uci):i for i,uci in enumerate(chess_moves)}
+	index_to_move 		= {val:key for key,val in move_to_index.items()}
 
 	def __init__(self,max_moves,tensorizing_fn=fen_to_1d,chess_moves=None,move_to_index=None,index_to_move=None,id=0,gen=0):
 
