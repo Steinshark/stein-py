@@ -10,37 +10,37 @@ from torch.utils.data import DataLoader
 import random 
 import copy 
 import multiprocessing
+import time 
+
 #TODO 
 #   function for tensor representation 
 #   feed-forward and choose a move 
 #   store training data 
 
-def normalize_weights(weights):
+def normalize_weights(weights:numpy.array):
+
     #Correct all weights to be positive
+
     if min(weights) < 0:
         positive_shift  = abs(min(weights))
-        weights         = [w + positive_shift for w in weights]
+        weights         += positive_shift
 
-    return numpy.array(weights)/sum(weights)
+    return numpy.array(weights)/max(weights)
 
 
 def get_legal_move(board:chess.Board,position_eval:numpy.ndarray,ε=.05,τ=5):
 
-
     #Find legal indices  
-    legal_move_indices      = [Chess.move_to_index[move] for move in list(board.generate_legal_moves())]      
-    #return Chess.index_to_move[random.choice(legal_move_indices)],legal_move_indices
+    legal_move_indices      = [Chess.move_to_index[move] for move in board.generate_legal_moves()]
+
     if len(legal_move_indices) == 1:
         return Chess.index_to_move[legal_move_indices[0]],legal_move_indices
     
     #Epsilon-greedy
     if random.random() < ε:
-        try:
-            legal_move_values       = [position_eval[i] for i in legal_move_indices]
-            return Chess.index_to_move[random.choices(legal_move_indices,normalize_weights(legal_move_values)**τ,k=1)[0]],legal_move_indices
-        except:
-            print(f"legal move vals: {legal_move_values}")
-            print(f"post comp vals : {normalize_weights(legal_move_values)**τ}")
+        legal_move_values       = numpy.take(position_eval,legal_move_indices)
+        return Chess.index_to_move[random.choices(legal_move_indices,normalize_weights(legal_move_values)**τ,k=1)[0]],legal_move_indices
+
     
     else:
         return Chess.index_to_move[max(legal_move_indices,key=lambda i:position_eval[i])],legal_move_indices 
@@ -56,19 +56,21 @@ def generate_training_games(model:networks.FullNet,n_games=16,max_ply=320):
 
     experiences         = []
     game_outcomes       = [0 for _ in chess_boards]
+    glm                 = get_legal_move
+    ft7d                = fen_to_7d_parallel
 
     while True in [board.is_active for board in chess_boards]:
-
+        
         #Grab active games
         current_boards      = [board for board in chess_boards if board.is_active]
 
         #Get evals with network forward pass
         with torch.no_grad():
-            position_reprs      = fen_to_7d_parallel([board.fen() for board in current_boards],req_grad=True)
+            position_reprs      = ft7d(set(board.fen() for board in current_boards),req_grad=True)
             position_evals      = model.forward(position_reprs.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))).cpu().numpy()
 
         #Chose the top legal move 
-        top_legal_moves     = [get_legal_move(board,eval) for board,eval in zip(current_boards,position_evals)]
+        top_legal_moves     = [glm(board,eval) for board,eval in zip(current_boards,position_evals)]
 
         #Save the current repr and position eval
         experiences += list(zip(current_boards,[999 for _ in current_boards],[Chess.move_to_index[tlm[0]] for tlm in top_legal_moves],[tlm[1] for tlm in top_legal_moves]))
@@ -81,7 +83,6 @@ def generate_training_games(model:networks.FullNet,n_games=16,max_ply=320):
             if (board.is_game_over() or (board.ply() > max_ply)):
                 board.is_active     = False 
                 board.game_result   = 1 if board.result() == "1-0" else -1 if board.result() == "0-1" else 0
-                #print(f"finished after {board.ply()}")
 
     #Fill in experiences 
     for i in range(len(experiences)):
@@ -214,13 +215,18 @@ def duel_models(model_w,model_b,max_ply=320):
 if __name__ == "__main__":
     model       = PolicyNetSm(n_ch=11,optimizer_kwargs={"lr":.0001,"weight_decay":.00001})
     bad_model   = PolicyNetSm(n_ch=11)
+    iter_games  = 128
+    n_iters     = int(1024/iter_games)
 
-    for _ in range(100):
-        if _ % 10 == 0:
+    for _ in range(8):
+
+        if _ % 4 == 0:
             print(f"run iter {_}")
+
         l_dataset   = [] 
-        for j in range(64):
-            l_dataset += generate_training_games(model,16,320)
+        for j in range(4):
+            t0 = time.time()
+            l_dataset += generate_training_games(model,iter_games,320)
         model   = train(model,l_dataset,bs=512)
 
     good_wins   = 0
@@ -243,10 +249,3 @@ if __name__ == "__main__":
             bad_wins += 1 
         else:
             draws += 1  
-    print(f"Good model: {good_wins}\tBad model: {bad_wins}\tDraws:{draws}")
-    exit()
-    n_games     = 4 
-    models      = [PolicyNetSm(n_ch=11) for _ in range(n_games)]
-
-    with multiprocessing.Pool(8) as pool:
-        pool.starmap(train_model,[(models[i],4,8,320) for i in range(n_games)])

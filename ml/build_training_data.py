@@ -74,7 +74,7 @@ while True:
         #Make random move 
         game.push(random.choice(list(game.generate_legal_moves())))
     
-        if len(data_list) > 5000:
+        if len(data_list) > 20000:
             with open(f"{DATASET_ROOT}/exps{(offset*10000+n_saves)}","w") as file:
                 file.write(json.dumps(data_list))
                 data_list  = [] 
