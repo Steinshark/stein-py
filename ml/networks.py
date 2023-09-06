@@ -905,4 +905,57 @@ class PolicyNetSm(FullNet):
 
 	def forward(self,x:torch.Tensor)->torch.Tensor:
 		return self.model(x)
+<<<<<<< HEAD
+=======
+
+
+class PolicyNetExp(FullNet):
+
+
+	def __init__(self,optimizer=torch.optim.Adam,act_fn=torch.nn.ReLU,optimizer_kwargs={"lr":1e-3,"weight_decay":2.5e-4,},device=torch.device('cuda'if torch.cuda.is_available() else 'cpu'),n_ch=6,loss_fn=torch.nn.CrossEntropyLoss):
+		super(PolicyNetExp,self).__init__(optimizer=optimizer,optimizer_kwargs=optimizer_kwargs,loss_fn=loss_fn,device=device)
+
+
+		#HYPERPARAMETERS 
+
+		kernel_size 		= 5
+
+		self.txfr_learner	= torch.nn.Sequential(
+			torch.nn.Conv2d(n_ch,128,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(128),
+
+			torch.nn.Conv2d(128,256,kernel_size,1,int((kernel_size+1)/2)),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(256),
+
+			torch.nn.Conv2d(256,512,5,1,1),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(512),	
+
+			torch.nn.Conv2d(512,512,5,1,1),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm2d(512),	
+			torch.nn.MaxPool2d(2)
+		).to(device)
+
+		self.legal_learner 	= torch.nn.Sequential(
+			torch.nn.Flatten(),
+			torch.nn.Linear(8192,2048),
+			torch.nn.ReLU(),
+			torch.nn.Linear(2048,2048),
+			torch.nn.ReLU(),
+
+			torch.nn.Linear(2048,1968),
+			torch.nn.Sigmoid()
+		).to(device)
+
+		self.model 	= torch.nn.ModuleList([self.txfr_learner,self.legal_learner])
+
+		self.set_training_vars()
+
+
+	def forward(self,x:torch.Tensor)->torch.Tensor:
+		return self.legal_learner(self.txfr_learner(x))
+>>>>>>> cd87c60c5fd1431ecd216e747a73bcaca4ff51b9
 	
