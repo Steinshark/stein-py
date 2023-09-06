@@ -166,7 +166,7 @@ def train(model:networks.FullNet,dataset:ChessDataset,bs=32):
 
         model.optimizer.step()
     print(f"\ttrain loss: {sum(losses)/len(losses)}")
-
+    
 
 
 
@@ -193,7 +193,7 @@ def duel_models(model_w,model_b,max_ply=320):
     while (not board.is_game_over()) and (board.ply() < max_ply):
 
         with torch.no_grad():
-            next_move       = get_legal_move(board,cur_model.forward(fen_to_7d_parallel([board.fen()],req_grad=False).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))).cpu().numpy()[0],ε=.9,τ=1)[0]
+            next_move       = get_legal_move(board,cur_model.forward(fen_to_7d_parallel([board.fen()],req_grad=False).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))).cpu().numpy()[0],ε=.025,τ=2)[0]
         board.push(next_move)
         if cur_model == model_w:
             cur_model       = model_b
@@ -218,16 +218,19 @@ if __name__ == "__main__":
     iter_games  = 128
     n_iters     = int(1024/iter_games)
 
-    for _ in range(8):
+    for _ in range(64):
 
         if _ % 4 == 0:
-            print(f"run iter {_}")
+            print(f"\n\nrun iter {_}")
 
-        l_dataset   = [] 
-        for j in range(4):
+        l_dataset   = []
+
+        for j in range(32):
             t0 = time.time()
             l_dataset += generate_training_games(model,iter_games,320)
-        model   = train(model,l_dataset,bs=512)
+
+        print(f"\n\tTraining on dataset size {len(l_dataset)}")
+        model   = train(model,l_dataset,bs=64)
 
     good_wins   = 0
     bad_wins    = 0
@@ -249,3 +252,4 @@ if __name__ == "__main__":
             bad_wins += 1 
         else:
             draws += 1  
+    print(f"Good model: {good_wins}\tBad model: {bad_wins}\tDraws:{draws}")
