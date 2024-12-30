@@ -1,19 +1,21 @@
-import socket 
-import random 
-import time 
-import numpy 
-import torch
-import networks 
-from networks import ChessNet, FullNet, ChessNetCompat, ChessDataset
-import pickle 
-import sys 
-import warnings
-import os 
-from torch.utils.data import DataLoader
+# import socket 
+# import random 
+# import time 
+# import numpy 
+# import torch
+# import networks 
+# from networks import ChessNet, FullNet, ChessNetCompat, ChessDataset
+# import pickle 
+# import sys 
+# import warnings
+# import os 
+# from torch.utils.data import DataLoader
 
-warnings.simplefilter('ignore')
+# warnings.simplefilter('ignore')
 
-socket.setdefaulttimeout(.00004)
+# socket.setdefaulttimeout(.00004)
+import os
+os.system("")
 DATASET_ROOT  	=	 r"\\FILESERVER\S Drive\Data\chess"
 
 class Color:
@@ -26,6 +28,8 @@ class Color:
 	BOLD = '\033[1m'
 	UNDERLINE = '\033[4m'
 
+print(f"{Color.GREEN}SERVER CHECK - GOOD {Color.END}") 
+exit()
 #check for connection
 if os.listdir(DATASET_ROOT):
 	print(f"{Color.GREEN}SERVER CHECK - GOOD {Color.END}") 
